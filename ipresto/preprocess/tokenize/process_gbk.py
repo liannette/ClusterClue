@@ -6,6 +6,14 @@ from multiprocessing import Pool
 from Bio import SeqIO
 
 
+def write_gbk_paths_file(gbks_dir_path, out_file_path):
+    # write names of all input gbk to file
+    gbk_file_paths = list(iglob(os.path.join(gbks_dir_path, "*.gbk")))
+    with open(out_file_path, "w") as f:
+        for gbk in gbk_file_paths:
+            f.write(f"{gbk}\n")
+                    
+
 def convert_gbk2fasta(
     gbk_file_path,
     out_folder,

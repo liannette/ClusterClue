@@ -7,68 +7,8 @@ from sympy import binomial as ncr
 from math import floor, log10
 import networkx as nx
 
-from ipresto.presto_stat.detect import detect_modules_in_bgcs
-from ipresto.preprocess.utils import count_non_emtpy_genes
+from ipresto.presto_stat.detect import detect_modules_in_bgcs, get_bgcs_per_module
 from ipresto.presto_stat.stat_module import StatModule
-from typing import List
-
-
-def remove_infrequent_genes(bgcs, min_genes, min_gene_occurrence, verbose):
-    """
-    Returns tokenised bgcs with genes replaced  with (-) if they occur < cutoff
-
-    bgcs: dict of {bgc_id:[(domains_in_a_gene)]}
-    min_genes: int, minimal non-empty genes (domain combinations) a bgc must have to be included
-    verbose: bool, if True print additional info
-    cutoff: int, remove genes (domain combinations) that occur less then cutoff
-    """
-    if verbose:
-        print(
-            "\nIgnoring infrequent genes that occur less than "
-            f"{min_gene_occurrence} times across all BGCs.\nThese genes will not "
-            "be considered when generating new PRESTO-STAT subcluster modules."
-        )
-
-    # Count occurrences of each gene
-    gene_counter = Counter(g for genes in bgcs.values() for g in genes if g != ("-",))
-    infreq_genes = {
-        g for g, count in gene_counter.items() if count < min_gene_occurrence
-    }
-
-    if verbose:
-        print(f"{len(infreq_genes)}/{len(gene_counter)} genes are infrequent")
-
-    # Replace infrequent genes with ("-",) and filter out clusters with too few genes
-    filtered_bgcs = OrderedDict()
-    for bgc_id, genes in bgcs.items():
-        filtered_genes = [("-",) if g in infreq_genes else g for g in genes]
-        n_filtered_genes = count_non_emtpy_genes(filtered_genes)
-
-        if n_filtered_genes < min_genes:
-            if verbose:
-                print(
-                    f"  Excluding {bgc_id}: only {n_filtered_genes} genes with "
-                    f"domain hits after removing infrequent genes (min {min_genes})."
-                )
-        else:
-            filtered_bgcs[bgc_id] = filtered_genes
-
-    if verbose:
-        n_removed = len(bgcs) - len(filtered_bgcs)
-        print(
-            f"{n_removed}/{len(bgcs)} BGCs have been removed due to containing "
-            f"less than {min_genes} genes with domain hits after removing "
-            "infrequent genes."
-        )
-
-    if len(filtered_bgcs) < 2:
-        raise ValueError(
-            "Not sufficent BGCs remain after filtering out infrequent genes. "
-            "Consider lowering the min_gene_occurrence parameter or providing a "
-            "larger BGC dataset."
-        )
-
-    return filtered_bgcs
 
 
 def makehash():
@@ -443,12 +383,7 @@ def identify_significant_modules(edges, max_pval, cores, verbose):
         verbose (bool): If True, prints additional information during execution.
 
     Returns:
-        list: A list of dictionaries, with each dictionary representing a module
-            - "module_id" (int): A unique identifier for the module.
-            - "n_genes" (int): The number of genes in the module.
-            - "n_domains" (int): The total number of domains in the module.
-            - "strictest_pval" (float): The strictest p-value cutoff for the module.
-            - "module" (tuple): The module itself.
+        dict: A dictionary where keys are module IDs and values are StatModule objects.
     """
     if verbose:
         print(
@@ -481,14 +416,20 @@ def identify_significant_modules(edges, max_pval, cores, verbose):
         pval_cutoff, generated_modules = result
         for mod in generated_modules:
             if mod not in modules:
-                modules[mod] = StatModule(mod, pval_cutoff, module_id)
+                modules[mod] = StatModule(
+                    module_id=module_id,
+                    strictest_pval=pval_cutoff,
+                    tokenised_genes=mod,
+                )
                 module_id += 1
             else:
                 strictest_pval = min(modules[mod].strictest_pval, pval_cutoff)
                 modules[mod].strictest_pval = strictest_pval
 
-    print(f"Detected {len(modules)} modules.")
-    return list(modules.values())
+    if verbose:
+        print(f"Identified {len(modules)} significant modules.")
+
+    return {mod.module_id: mod for mod in modules.values()}
 
 
 def calculate_interaction_pvals(
@@ -509,63 +450,139 @@ def calculate_interaction_pvals(
     return pvals
 
 
-def count_module_occurrences(modules, bgcs, cores):
-    """Counts the number of occurences of each module in the BGC dataset.
-
-    Args:
-        modules (list): A list of dictionaries representing modules.
-        bgcs (dict): A dictionary where each key is a BGC identifier and each value
-            is a list of genes. Each gene is a tuple of protein domains.
-        cores (int): The number of CPU cores to use for parallel processing.
-
-    Returns:
-        dict: A dictionary where each key is a module identifier and each value
-            is the number of occurrences of that module in the BGC dataset.
-    """
-    detected_modules = detect_modules_in_bgcs(bgcs, modules, cores)
-    module_counts = Counter(
-        mod for bgc, mods in detected_modules.items() for mod in mods
-    )
-    for mod in modules:
-        mod.occurences = module_counts.get(mod, 0)
-
-    return modules
-
-
 def generate_stat_modules(
     out_dir,
     bgcs,
     min_genes,
     max_pval,
-    min_gene_occurence,
     cores,
     verbose,
 ):
-    # remove genes that occur too infrequent in the bgc dataset
-    bgcs = remove_infrequent_genes(bgcs, min_genes, min_gene_occurence, verbose)
-
     # find the modules
     p_values = calculate_interaction_pvals(bgcs, cores, verbose)
     modules = identify_significant_modules(p_values, max_pval, cores, verbose)
 
-    # count the number of occurences of each module in the BGC dataset
-    modules = count_module_occurrences(modules, bgcs, cores)
+    # remove modules that do not occur in the bgc dataset
+    if verbose:
+        print("\nRemoving modules that do not occur at least once in the BGC dataset")
+    min_occurence = 1
+    existing_modules = filter_infrequent_modules(
+        modules, bgcs, min_occurence, cores
+    )
+    if verbose:
+        n_removed = len(modules) - len(existing_modules)
+        percent_removed = n_removed / len(modules) * 100
+        print(f"Removed {n_removed} ({round(percent_removed, 2)}%) modules.")
 
-    return modules
+    # remove modules that are contained by another one, occuring the same amount in the dataset
+    if verbose:
+        print("\nRemoving modules that are contained by another one")
+    filtered_modules = filter_redundant_modules(existing_modules, bgcs, cores)
+    if verbose:
+        n_removed = len(existing_modules) - len(filtered_modules)
+        percent_removed = n_removed / len(modules) * 100
+        print(f"Removed {n_removed} ({round(percent_removed, 2)}%) modules.")
+
+    return filtered_modules
 
 
 def filter_infrequent_modules(
-    modules: List[StatModule], min_occurence: int
-) -> List[StatModule]:
-    """Removes modules that occur less than twice in the BGC dataset.
+    modules: dict, bgcs: dict, min_occurence: int, cores: int
+) -> dict:
+    """Removes modules that occur less than min_occurence in the BGC dataset.
 
     Args:
-        modules (list): A list of dictionaries representing modules.
+        modules (dict): A dictionary where keys are module IDs and values are StatModule objects.
+        bgcs (dict): A dictionary where each key is a BGC identifier and each value is a list of genes.
+            Each gene is a tuple of protein domains.
+        min_occurence (int): The minimum number of occurrences for a module.
+        cores (int): The number of CPU cores to use for parallel processing.
 
     Returns:
-        list: A filtered list of dictionaries representing modules that occur more than once.
+        dict: A dictionary of modules that occur at least min_occurence times in the BGC dataset.
+
+
+    Note:
+        The module IDs in the returned list are renumbered starting from 1.
+
     """
-    filtered_modules = [mod for mod in modules if mod.occurences > 1]
-    for new_id, module in enumerate(filtered_modules, start=1):
-        module.module_id = new_id
-    return filtered_modules
+    modules_per_bgc = detect_modules_in_bgcs(bgcs, modules, cores)
+    bgcs_per_module = get_bgcs_per_module(modules, modules_per_bgc)
+
+    new_id = 1
+    updated_modules = OrderedDict()
+    for mod_id, mod in modules.items():
+        if len(bgcs_per_module[mod_id]) >= min_occurence:
+            updated_modules[new_id] = StatModule(
+                module_id=new_id,
+                strictest_pval=mod.strictest_pval,
+                tokenised_genes=mod.tokenised_genes,
+            )
+            new_id += 1
+
+    return updated_modules
+
+
+def module_is_redundant(module_id: int, modules: dict, n_occurences: dict) -> bool:
+    """
+    Check if a module is contained in any other module with the same number of occurrences.
+
+    Args:
+        module_id (str): The ID of the module to check.
+        modules (dict): Dictionary where keys are module IDs and values are StatModule objects.
+        n_occurences (dict): Dictionary where keys are module IDs and values are the number of occurrences.
+
+    Returns:
+        bool: True if the module is contained in another, False otherwise.
+    """
+    gene_set = set(modules[module_id].tokenised_genes)
+    for other_module_id, other_module in modules.items():
+        if module_id != other_module_id:
+            other_gene_set = set(other_module.tokenised_genes)
+            if (
+                n_occurences[module_id] == n_occurences[other_module_id] and 
+                gene_set.issubset(other_gene_set)
+                ):
+                return True
+    return False
+
+
+def filter_redundant_modules(modules: dict, bgcs: dict, cores: int) -> dict:
+    """Removes modules that are contained by another one, occuring the same amount in the dataset.
+
+    Args:
+        modules (dict): A dictionary where keys are module IDs and values are StatModule objects.
+        bgcs (dict): A dictionary where each key is a BGC identifier and each value is a list of genes.
+            Each gene is a tuple of protein domains.
+        cores (int): The number of CPU cores to use for parallel processing.
+
+    Returns:
+        dict: A dictionary of filtered modules.
+    """
+    modules_per_bgc = detect_modules_in_bgcs(bgcs, modules, cores)
+    bgcs_per_module = get_bgcs_per_module(modules, modules_per_bgc)
+    
+    module_ids = list(modules.keys())
+    n_occurences = {mod_id: len(bgcs_per_module[mod_id]) for mod_id in module_ids}
+
+    pool = Pool(cores, maxtasksperchild=5)
+    results = pool.map(
+        partial(module_is_redundant, modules=modules, n_occurences=n_occurences), 
+        module_ids
+    )
+    pool.close()
+    pool.join()
+    is_redundant = dict(zip(module_ids, results))
+
+    new_id = 1
+    updated_modules = OrderedDict()
+    for module_id in module_ids:
+        if not is_redundant[module_id]:
+            mod = modules[module_id]
+            updated_modules[new_id] = StatModule(
+                module_id=new_id,
+                strictest_pval=mod.strictest_pval,
+                tokenised_genes=mod.tokenised_genes,
+            )
+            new_id += 1
+    return updated_modules

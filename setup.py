@@ -39,12 +39,14 @@ setup(
           'networkx',
           'numpy',
           'gensim==3.8.3',
+          'smart_open<5.0.0', # for compatibility with LdaMulticore in gensim 3.8.3
           'pyLDAvis',
           'pandas',
           'scipy',
           'seaborn',
           'statsmodels',
-          'sympy'
+          'sympy',
+          'scikit-learn',
       ],
     extras_require={
         "dev": [

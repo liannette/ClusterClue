@@ -1,9 +1,10 @@
 import re
 
 from ipresto.preprocess.utils import (
-    count_non_emtpy_genes,
-    parse_cluster_line,
-    format_cluster_to_string,
+    read_clusters_and_remove_empty,
+    count_gene_occurrences,
+    count_non_empty_genes,
+    write_clusters,
     write_gene_counts,
     read_txt,
 )
@@ -53,10 +54,10 @@ def filter_domains_in_gene(gene: Tuple[str], include_domains: Set[str]) -> Tuple
     return tuple(filtered_gene) if filtered_gene else ("-",)
 
 
-def process_cluster(cluster, include_domains, min_genes, verbose):
+def filter_domains_in_cluster(cluster, include_domains, min_genes, verbose):
     cluster_id, genes = cluster
     filtered_genes = [filter_domains_in_gene(gene, include_domains) for gene in genes]
-    n_genes_with_domains = count_non_emtpy_genes(filtered_genes)
+    n_genes_with_domains = count_non_empty_genes(filtered_genes)
     if n_genes_with_domains < min_genes:
         if verbose:
             print(f"  excluding {cluster_id}, only {n_genes_with_domains} genes with domain hits (min {min_genes})")
@@ -91,30 +92,23 @@ def perform_domain_filtering(
 
     # Read the input files
     include_domains = set(read_txt(domain_filtering_file_path))
-    with open(in_file_path, "r") as infile:
-        clusters = [parse_cluster_line(line) for line in infile.readlines()]
+    clusters = read_clusters_and_remove_empty(in_file_path, min_genes, verbose)
 
     # Process each cluster in parallel
     with Pool(cores, maxtasksperchild=1000) as pool:
         process_func = partial(
-            process_cluster,
+            filter_domains_in_cluster,
             include_domains=include_domains,
             min_genes=min_genes,
             verbose=verbose,
         )
-        results = pool.map(process_func, clusters)
-        results = [res for res in results if res is not None]
-
-    # Count the number of genes in the filtered clusters
-    gene_count = Counter()
-    for cluster_id, filtered_genes in results:
-        gene_count.update(filtered_genes)
+        results = pool.map(process_func, clusters.items())
+    results = [res for res in results if res is not None]
+    filtered_clusters = {cluster_id: genes for (cluster_id, genes) in results}
 
     # Write the results to the output files
-    with open(out_file_path, "w") as outfile:
-        for cluster_id, filtered_genes in results:
-            outfile.write(format_cluster_to_string(cluster_id, filtered_genes))
-    write_gene_counts(gene_count, counts_file_path)
+    write_clusters(filtered_clusters, out_file_path)
+    write_gene_counts(count_gene_occurrences(filtered_clusters), counts_file_path)
 
     if verbose:
         n_excluded = len(clusters) - len(results)

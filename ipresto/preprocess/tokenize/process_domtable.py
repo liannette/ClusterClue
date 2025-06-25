@@ -8,7 +8,7 @@ from pathlib import Path
 from functools import partial
 
 from ipresto.preprocess.utils import (
-    count_non_emtpy_genes,
+    count_non_empty_genes,
     format_cluster_to_string,
     write_gene_counts,
 )
@@ -171,7 +171,7 @@ def process_domtable(
 
 def filter_non_empty_genes(clusters, min_genes, verbose):
     """
-    Filters the clusters for non-empty genes and returns the filtered indices and gene counter.
+    Filters the clusters for non-empty genes.
 
     Args:
         clusters (list): List of clusters from processing domtables.
@@ -179,19 +179,20 @@ def filter_non_empty_genes(clusters, min_genes, verbose):
         verbose (bool): If True, prints additional information during filtering.
 
     Returns:
-        tuple: A tuple containing the filtered indices and gene counter.
+        list: A list containing the filtered clusters
     """
-    filtered_clusters_idx = []
-    gene_counter = Counter()
-    for i in range(len(clusters)):
-        cluster_id, tokenized_genes, _ = clusters[i]
-        n_genes_with_domains = count_non_emtpy_genes(tokenized_genes)
-        if n_genes_with_domains < min_genes and verbose:
+    filtered_clusters = []
+
+    for cluster in clusters:
+        cluster_id, tokenized_genes, _ = cluster
+        n_genes_with_domains = count_non_empty_genes(tokenized_genes)
+
+        if n_genes_with_domains >= min_genes:
+            filtered_clusters.append(cluster)
+        elif verbose:
             print(f"  excluding {cluster_id}, only {n_genes_with_domains} genes with domain hits (min {min_genes})")
-        else:
-            gene_counter.update(tokenized_genes)
-            filtered_clusters_idx.append(i)
-    return filtered_clusters_idx, gene_counter
+
+    return sorted(filtered_clusters, key=lambda x: x[0])
 
 
 def write_summary_header(summary_file):
@@ -272,36 +273,34 @@ def process_domtables(
         )
         results = pool.map(process_func, domtable_paths)
         clusters = [res for res in results if res is not None]
+    n_failed = len(domtable_paths) - len(clusters)
 
     # Filter the clusters for non-empty genes
-    filtered_clusters_idx, gene_counter = filter_non_empty_genes(
-        clusters, min_genes, verbose
-    )
+    clusters = filter_non_empty_genes(clusters, min_genes, verbose)
+    n_converted = len(clusters)
+    n_excluded = len(domtable_paths) - len(clusters) - n_failed
 
-    # Write the clusters to a file
     cluster_file = open(cluster_file_path, "w")
-    for i in filtered_clusters_idx:
-        cluster_id, tokenized_genes, _ = clusters[i]
+    for cluster_id, tokenized_genes, _ in clusters:
         cluster_file.write(format_cluster_to_string(cluster_id, tokenized_genes))
     cluster_file.close()
 
+
     # Write the gene counts to a file
+    gene_counter = Counter()
+    for _, tokenized_genes, _ in clusters:
+        gene_counter.update(tokenized_genes)
     write_gene_counts(gene_counter, gene_counts_file_path)
 
     # Write the summary file
     domain_hits_file = open(domain_hits_file_path, "w")
     write_summary_header(domain_hits_file)
-    for i in filtered_clusters_idx:
-        _, _, domain_hits = clusters[i]
+    for _, _, domain_hits in clusters:
         for domain_hit in domain_hits:
             domain_hits_file.write(format_summary_line(*domain_hit))
     domain_hits_file.close()
 
     if verbose:
-        n_converted = len(filtered_clusters_idx)
-        n_excluded = len(clusters) - len(filtered_clusters_idx)
-        n_failed = len(domtable_paths) - len(clusters)
-
         print(f"\nProcessed {len(domtable_paths)} domtables:")
         print(f" - {n_converted} domtables were converted to tokenised clusters.")
         print(f" - {n_excluded} excluded for having < {min_genes} non-empty genes")

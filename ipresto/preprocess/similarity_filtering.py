@@ -1,9 +1,10 @@
 import os
+import sys
 import random
 import time
 from collections import Counter, OrderedDict
 from functools import partial
-from itertools import combinations, islice
+from itertools import combinations, islice, chain
 from multiprocessing import Pool
 
 import networkx as nx
@@ -17,22 +18,16 @@ from ipresto.preprocess.utils import (
 )
 
 
-def generate_adjacent_domain_pairs(domains):
-    """
-    Generate a set of unique pairs of adjacent domains, excluding pairs where one domain is '-'.
-
-    Args:
-        domains (list of str): A list of domain names, including '-' to represent an empty gene.
-
-    Returns:
-        set: A set of tuples, each containing a pair of adjacent domain names in sorted order.
-             Pairs that include a domain separated by '-' are excluded.
-    """
-    return {
-        tuple(sorted(pair))
-        for pair in zip(domains[:-1], domains[1:])
-        if "-" not in pair
-    }
+def generate_adjacent_pairs(domains):
+    """Generate unique adjacent domain pairs (unordered), skipping pairs containing '-'."""
+    result = set()
+    for i in range(len(domains) - 1):
+        d1, d2 = domains[i], domains[i + 1]
+        if d1 != "-" and d2 != "-":
+            # Put in canonical order (cheaper than sort)
+            pair = (d1, d2) if d1 < d2 else (d2, d1)
+            result.add(pair)
+    return result
 
 
 def calc_adj_index(domains1, domains2):
@@ -63,16 +58,20 @@ def calc_adj_index(domains1, domains2):
     If there is an empty gene between two domains these two domains are not
         adjacent
     """
-    domain_pairs1 = generate_adjacent_domain_pairs(domains1)
-    domain_pairs2 = generate_adjacent_domain_pairs(domains2)
+    domain_pairs1 = generate_adjacent_pairs(domains1)
+    domain_pairs2 = generate_adjacent_pairs(domains2)
 
     # If either cluster has no domain pairs, the adjacency index is 0.0
     if not domain_pairs1 or not domain_pairs2:
         return 0.0
 
+    intersection = domain_pairs1 & domain_pairs2
+    if not intersection:
+        return 0.0
+
     # Calculate adjacency index as ratio of intersection to union of domain pairs
-    adj_index = len(domain_pairs1 & domain_pairs2) / len(domain_pairs1 | domain_pairs2)
-    return adj_index
+    union_size = len(domain_pairs1) + len(domain_pairs2) - len(intersection)
+    return len(intersection) / union_size
 
 
 def is_contained(doms1, doms2):
@@ -86,9 +85,9 @@ def is_contained(doms1, doms2):
     Returns:
     bool: True if all domains from one cluster are contained in the other, False otherwise.
     """
-    all_in_doms2 = all(domain in doms2 for domain in doms1 if domain != "-")
-    all_in_doms1 = all(domain in doms1 for domain in doms2 if domain != "-")
-    return all_in_doms2 or all_in_doms1
+    set1 = {d for d in doms1 if d != "-"}
+    set2 = {d for d in doms2 if d != "-"}
+    return set1.issubset(set2) or set2.issubset(set1)
 
 
 def extract_domains(tokenised_genes):
@@ -101,83 +100,100 @@ def extract_domains(tokenised_genes):
     Returns:
         list: A list of domains.
     """
-    return [domain for gene in tokenised_genes for domain in gene]
+    return list(chain.from_iterable(tokenised_genes))
 
 
 def generate_edge(bgc_pair, adj_cutoff):
     """
-    Calculate similarity scores between two bgcs and return if above cutoff
+    Calculate similarity scores between two BGCs and return an edge if above cutoff.
 
-    pair: tuple of 2 bgcs
-    cutoff: float
-    A tuple is returned that can be read as an edge by nx.Graph.add_edges_from
+    Args:
+        bgc_pair (tuple): A tuple containing two BGCs, where each BGC is represented
+                          as a tuple of (bgc_name, genes).
+        adj_cutoff (float): The adjacency index cutoff for similarity.
+
+    Returns:
+        tuple or None: A tuple (bgc_name1, bgc_name2) if the similarity is above the cutoff
+                       or one BGC is contained in the other. Otherwise, returns None.
     """
-    bgc_name1, genes1 = bgc_pair[0]
-    bgc_name2, genes2 = bgc_pair[1]
+    (bgc_name1, genes1), (bgc_name2, genes2) = bgc_pair
 
-    domains1 = extract_domains(genes1)
-    domains2 = extract_domains(genes2)
+    # Extract domains from the genes
+    domains1 = list(chain.from_iterable(genes1))
+    domains2 = list(chain.from_iterable(genes2))
 
-    contained = is_contained(domains1, domains2)
+    # Check if the adjacency index exceeds the cutoff
     adj_index = calc_adj_index(domains1, domains2)
+    if adj_index > adj_cutoff:
+        return bgc_name1, bgc_name2
 
-    if contained or adj_index > adj_cutoff:
-        return bgc_name1, bgc_name2, adj_index, contained
+    # Check if one BGC is contained within the other
+    if is_contained(domains1, domains2):
+        return bgc_name1, bgc_name2
 
 
-def generate_edges(dom_dict, cutoff, cores, temp_file, verbose):
-    """Returns a pair of clusters in a tuple if ai/contained above cutoff
-
-    dom_dict: dict {clus1:[domains]}, clusters linked to domains
-    cutoff: float, between 0-1, when clusters are similar
-    cores: int, amount of cores used for calculation
-
-    returns a generator
-
-    Note: temp file storing the edges so they are not in memory and passed in pool
+def determine_chunksize(batch_size, cores):
     """
+    Determine the optimal chunksize for parallel processing (~20× chunks per core).
+
+    Args:
+        batch_size (int): Total number of tasks to process.
+        cores (int): Number of available CPU cores.
+
+    Returns:
+        int: The calculated chunksize for efficient parallel processing.
+    """
+    # Calculate an initial chunksize aiming for ~20× chunks per core
+    chunksize = max(batch_size // (cores * 20), 5)
+    
+    # Ensure that chunksize doesnt exceed maximum allowable size
+    return min(chunksize, sys.maxsize)
+    
+
+def generate_edges(clusters, cutoff, cores, edges_file, verbose):
+    """Returns pairs of clusters whose similarity exceeds cutoff, written to edges_file."""
     if verbose:
         print("\nGenerating similarity scores")
 
-    clusters = dom_dict.items()
-    pairs = combinations(clusters, 2)
-    slice_size = int(ncr(25000, 2))
-    tot_size = ncr(len(clusters), 2)
-    slce = islice(pairs, slice_size)
-    chunk_num = int(tot_size / slice_size) + 1
-    tloop = time.time()
-    # update tempfile with increments of slice_size
-    for i in range(chunk_num):
-        if i == chunk_num - 1:
-            # get chunksize of remainder
-            chnksize = int(
-                ((tot_size / slice_size % 1 * slice_size) / (cores * 20)) + 1
-            )
-            if chnksize < 5:
-                chnksize = 5
-        else:
-            # the default used by map divided by 5
-            chnksize = int((slice_size / (cores * 20)) + 1)
-        pool = Pool(cores, maxtasksperchild=10)
-        edges_slce = pool.imap(
-            partial(generate_edge, adj_cutoff=cutoff), slce, chunksize=chnksize
-        )
-        pool.close()
-        pool.join()
-        # write to file
-        with open(temp_file, "a") as tempf:
-            for line in edges_slce:
-                if line:
-                    tempf.write("{}\n".format("\t".join(map(str, line))))
-        slce = islice(pairs, slice_size)
-        del (edges_slce, pool)
-        if verbose and i == 0:
-            t = (time.time() - tloop) * chunk_num
-            # based on one loop
-            t_str = "  it will take around {}h{}m{}s".format(
-                int(t / 3600), int(t % 3600 / 60), int(t % 3600 % 60)
-            )
-            print(t_str)
+    # Remove existing temp file
+    if os.path.exists(edges_file):
+        os.remove(edges_file)
+
+    # Prepare cluster pairs
+    total_size = int(ncr(len(clusters), 2))
+    batch_size = int(ncr(25000, 2)) # pairs of 25k BGCs is the maximum size
+    batch_num = (total_size + batch_size - 1) // batch_size  # round up division
+    bgc_pairs = combinations(clusters.items(), 2)
+
+    with open(edges_file, "a") as f, Pool(cores, maxtasksperchild=10) as pool:
+        for i in range(batch_num):
+            start_time = time.time()
+
+            # adjust batch size for the last batch
+            if i == batch_num - 1:
+                batch_size = total_size - batch_size * (batch_num - 1)
+
+            batch = islice(bgc_pairs, batch_size)
+            chunk_size = determine_chunksize(batch_size, cores)
+            worker_fn = partial(generate_edge, adj_cutoff=cutoff)
+
+            # Use unordered map for better load balancing
+            for edge in pool.imap_unordered(worker_fn, batch, chunksize=chunk_size):
+                if edge:
+                    line = "\t".join(map(str, edge))
+                    f.write(f"{line}\n")
+
+            # log time estimate based on one loop
+            if verbose and i == 0:
+                elapsed = time.time() - start_time
+                t_est = elapsed * batch_num
+                hours = int(t_est / 3600)
+                minutes = int(t_est % 3600 / 60)
+                seconds = int(t_est % 3600 % 60)
+                print(f"Estimated time: {hours}h{minutes}m{seconds}s")
+            
+            if verbose:
+                print(f"  {i+1}/{batch_num} batches processed")
 
 
 def generate_graph(edges, verbose):
@@ -185,13 +201,16 @@ def generate_graph(edges, verbose):
 
     edges: list/generator of tuples, (pair1,pair2,{attributes})
     """
-    g = nx.Graph()
-    g.add_edges_from(edges)
+    if verbose:
+        print("\nGenerating graph from edges, this may take a while")
+
+    graph = nx.Graph()
+    graph.add_edges_from(edges)
     if verbose:
         print("\nGenerated graph with:")
-        print(" {} nodes".format(g.number_of_nodes()))
-        print(" {} edges".format(g.number_of_edges()))
-    return g
+        print(" {} nodes".format(graph.number_of_nodes()))
+        print(" {} edges".format(graph.number_of_edges()))
+    return graph
 
 
 def read_edges(file_path):
@@ -201,10 +220,8 @@ def read_edges(file_path):
     """
     with open(file_path, "r") as inf:
         for line in inf:
-            line = line.strip("\n").split("\t")
-            cont = line[-1] == "True"
-            tup = (line[0], line[1], {"ai": float(line[2]), "contained": cont})
-            yield tup
+            parts = line.strip().split("\t")
+            yield parts[0], parts[1]
 
 
 def find_representatives(cliques, d_l_dict, graph):

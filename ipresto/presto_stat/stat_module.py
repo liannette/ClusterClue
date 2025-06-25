@@ -1,25 +1,35 @@
 class StatModule:
-    def __init__(self, tokenised_genes, strictest_pval, module_id=None):
+    def __init__(
+        self,
+        module_id,
+        strictest_pval,
+        tokenised_genes,
+    ):
         self.module_id = module_id
+        self.n_genes = len(tokenised_genes)
+        self.n_domains = sum(len(domains) for domains in tokenised_genes)
         self.tokenised_genes = tokenised_genes
         self.strictest_pval = strictest_pval
-        self.occurences = None
-        self.n_genes = len(tokenised_genes)
-        self.n_domains = sum(len(gene) for gene in tokenised_genes)
 
     def __repr__(self):
-        return f"StatModule({self.tokenised_genes}, {self.strictest_pval})"
+        return (
+            f"StatModule("
+            f"module_id={self.module_id}, "
+            f"strictest_pval={self.strictest_pval}, "
+            f"n_genes={self.n_genes}, "
+            f"n_domains={self.n_domains}, "
+            f"tokenised_genes={self.tokenised_genes})"
+        )
 
     def __eq__(self, other):
         if not isinstance(other, StatModule):
             return False
-        return (self.tokenised_genes == other.tokenised_genes and
-                self.strictest_pval == other.strictest_pval)
+        return self.tokenised_genes == other.tokenised_genes
 
     def __hash__(self):
         # Convert tokenised_genes to a tuple of tuples to make it hashable
         tokenised_genes_hashable = tuple(tuple(gene) for gene in self.tokenised_genes)
-        return hash((tokenised_genes_hashable, self.strictest_pval))
+        return hash(tokenised_genes_hashable)
 
     def to_dict(self):
         """
@@ -30,9 +40,8 @@ class StatModule:
         """
         return {
             "module_id": self.module_id,
+            "strictest_pval": self.strictest_pval,
             "n_genes": self.n_genes,
             "n_domains": self.n_domains,
-            "strictest_pval": self.strictest_pval,
-            "occurences": self.occurences,
             "tokenised_genes": self.tokenised_genes,
         }

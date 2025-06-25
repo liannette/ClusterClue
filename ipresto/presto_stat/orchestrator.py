@@ -4,11 +4,19 @@ from typing import Optional
 from ipresto.presto_stat.utils import (
     read_clusterfile,
     read_stat_modules,
+    write_modules_per_bgc,
+    write_bgcs_per_module,
     write_detected_stat_modules,
-    write_detected_stat_module_ids,
 )
-from ipresto.presto_stat.build import generate_stat_modules, filter_infrequent_modules
-from ipresto.presto_stat.detect import detect_modules_in_bgcs
+from ipresto.presto_stat.generate import generate_stat_modules
+from ipresto.presto_stat.detect import (
+    detect_modules_in_bgcs,
+    get_bgcs_per_module,
+)
+from ipresto.presto_stat.cluster_modules import (
+    cluster_stat_modules,
+    plot_kmeans_elbow,
+)
 from ipresto.presto_stat.utils import write_stat_modules
 
 
@@ -18,8 +26,8 @@ class StatOrchestrator:
         out_dir_path: str,
         cluster_file: str,
         stat_modules_file_path: Optional[str],
-        min_gene_occurence: int,
         pval_cutoff: float,
+        n_families_range: list,
         min_genes_per_bgc: int,
         cores: int,
         verbose: bool,
@@ -32,11 +40,11 @@ class StatOrchestrator:
         # Read clusters
         bgcs = read_clusterfile(cluster_file, min_genes_per_bgc, verbose)
 
-        # Generate subcluster modules, if not provided
-        if stat_modules_file_path is None:
+        # Generate subcluster modules
+        if not stat_modules_file_path:
             if verbose:
                 print(
-                    "\nComputing new PRESTO-STAT subcluster modules using the  "
+                    "\nGenerating new PRESTO-STAT subcluster modules using the  "
                     f"clusters from {cluster_file}"
                 )
             modules = generate_stat_modules(
@@ -44,70 +52,63 @@ class StatOrchestrator:
                 bgcs,
                 min_genes_per_bgc,
                 pval_cutoff,
-                min_gene_occurence,
                 cores,
                 verbose,
             )
-            module_file_path = out_dir / "stat_modules_unfiltered.txt"
-            write_stat_modules(modules, module_file_path)
+            stat_modules_file_path = out_dir / "stat_modules.txt"
+            write_stat_modules(modules, stat_modules_file_path)
             if verbose:
                 print(
-                    f"Unfiltered PRESTO-STAT subcluster modules have been "
-                    f"saved to: {module_file_path}"
+                    "\nPRESTO-STAT subcluster modules have been saved to: "
+                    f"{stat_modules_file_path}"
                 )
 
-            # remove modules that occur too infrequently in the bgc dataset
-            min_occurence = 2
-            if verbose:
-                print(
-                    f"\nRemoving modules that occur less than {min_occurence} "
-                    "times in the BGC dataset."
-                )
-            filtered_modules = filter_infrequent_modules(modules, min_occurence)
-            if verbose:
-                percent_removed = (
-                    (len(modules) - len(filtered_modules)) / len(modules) * 100
-                )
-                print("  removed {:.1f}% of modules".format(percent_removed))
-
-            # write filtered modules to file
-            module_file_path = out_dir / "stat_modules_filtered.txt"
-            write_stat_modules(filtered_modules, module_file_path)
-            if verbose:
-                print(
-                    f"Filtered PRESTO-STAT subcluster modules have been saved to: "
-                    f"{module_file_path}"
-                )
-
-        # # Use subcluster modules, if provided
-        # else:
-        #     if verbose:
-        #         print(
-        #             "\nUsing PRESTO-STAT subcluster modules from: "
-        #             f"{stat_modules_file_path}"
-        #         )
-        #     modules = read_stat_modules(stat_modules_file_path)
+        if verbose:
+            print(
+                "\nReading PRESTO-STAT subcluster modules from: "
+                f"{stat_modules_file_path}"
+            )
+        modules = read_stat_modules(stat_modules_file_path)
 
         # Detect modules in bgcs
         if verbose:
-            print("\nDetecting PRESTO-STAT subcluster modules in the input clusters")
-        detected_modules = detect_modules_in_bgcs(bgcs, modules, cores)
-
-        if verbose:
-            print("\nPRESTO-STAT subcluster detection completed.")
-
-        # Write the detected modules IDs to a text file
-        stat_subclusters_path = out_dir / "detected_stat_module_ids.txt"
-        write_detected_stat_module_ids(detected_modules, stat_subclusters_path)
-        if verbose:
             print(
-                f"Detected STAT module IDs have been saved to: {stat_subclusters_path}"
+                "\nDetecting PRESTO-STAT subcluster modules in the input clusters"
             )
 
-        # Write the detected modules to a fasta file
-        stat_subclusters_path = out_dir / "detected_stat_modules.txt"
-        write_detected_stat_modules(detected_modules, stat_subclusters_path)
-        if verbose:
-            print(f"Detected STAT modules have been saved to: {stat_subclusters_path}")
+        modules_per_bgc = detect_modules_in_bgcs(bgcs, modules, cores)
+        write_modules_per_bgc(modules_per_bgc, out_dir / "modules_per_bgc.txt")
 
-        return stat_subclusters_path
+        bgcs_per_module = get_bgcs_per_module(modules, modules_per_bgc)
+        write_bgcs_per_module(bgcs_per_module, out_dir / "bgcs_per_module.txt")
+
+        write_detected_stat_modules(
+            modules_per_bgc, modules, out_dir / "detected_stat_modules.txt"
+        )
+        if verbose:
+            print(
+                "\nDetected PRESTO-STAT subcluster modules have been saved to: "
+                f"{out_dir / 'detected_stat_modules.txt'}"
+            )
+
+        # Cluster the modules into families
+        if n_families_range:
+            if verbose:
+                print(
+                    "\nClustering the STAT modules into families."
+                )
+
+            # TODO: automatic decide on best k 
+            inertias = cluster_stat_modules(
+                modules, n_families_range, cores, out_dir, verbose
+            )
+
+            if len(n_families_range) > 1:
+                plot_path = out_dir / "stat_modules_families_elbow_plot.png"
+                plot_kmeans_elbow(n_families_range, inertias, plot_path)
+                print(f"Elbow plot saved to: {plot_path}")
+
+        if verbose:
+            print("\nPresto STAT finished.")
+
+

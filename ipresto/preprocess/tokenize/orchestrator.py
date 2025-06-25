@@ -3,13 +3,14 @@ from pathlib import Path
 
 from ipresto.preprocess.tokenize.process_domtable import process_domtables
 from ipresto.preprocess.tokenize.process_fasta import process_fastas
-from ipresto.preprocess.tokenize.process_gbk import process_gbks
+from ipresto.preprocess.tokenize.process_gbk import process_gbks, write_gbk_paths_file
 
 
 class TokenizeOrchestrator:
     def run(
         self,
-        outdir_path,
+        clusters_file_path,
+        gene_counts_file_path,
         gbks_dir_path,
         hmm_file_path,
         exclude_name,
@@ -27,7 +28,7 @@ class TokenizeOrchestrator:
         clusters to a file.
 
         Args:
-            outdir_path (str): Path to the output directory where intermediate files will be saved.
+            clusters_file_path (str): Path to the output file where tokenized clusters will be saved.
             gbks_dir_path (str): Path to the folder containing gbk files.
             hmm_file_path (str): Path to the HMM file to be used as the database.
             exclude_name (list of str): List of substrings; files will be excluded if part of the
@@ -42,19 +43,12 @@ class TokenizeOrchestrator:
         Returns:
             str: Path to the tokenized clusters file.
         """
-        # Create output directory
-        outdir_path = Path(outdir_path)
-        os.makedirs(outdir_path, exist_ok=True)
+        outdir_path = Path(clusters_file_path).parent
 
-        # Skip tokenization step if clusters file already exists
-        clusters_file_path = outdir_path / "clusters_unfiltered.csv"
-        if clusters_file_path.exists():
-            if verbose:
-                print(
-                    "Skipping tokenization step, because clusters file "
-                    f"already exists at {clusters_file_path}."
-                )
-            return clusters_file_path
+        # write the paths of all input gbks to a file
+        gbks_file = outdir_path / "input_gbks_paths.txt"
+        if not gbks_file.exists():
+            write_gbk_paths_file(gbks_dir_path, gbks_file)
 
         # Step 1: Processing gbk files into fasta files
         fastas_dir_path = outdir_path / "fastas"
@@ -81,7 +75,6 @@ class TokenizeOrchestrator:
 
         # Step 3: Processing domtables into tokenized clusters
         domain_hits_file_path = outdir_path / "all_domain_hits.txt"
-        gene_counts_file_path = outdir_path / "clusters_gene_counts.csv"
         process_domtables(
             domtables_dir_path,
             clusters_file_path,

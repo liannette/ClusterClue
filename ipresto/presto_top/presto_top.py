@@ -36,37 +36,6 @@ from numpy import sqrt
 from operator import itemgetter
 
 
-def remove_infr_doms_str(clusdict, m_gens, verbose, cutoff=3):
-    """Returns clusdict with genes replaced  with - if they occur < cutoff
-
-    clusdict: dict of {cluster:[domains_of_a_gene]}
-    m_gens: int, minimal distinct genes a cluster must have to be included
-    verbose: bool, if True print additional info
-    cutoff: int, remove genes (domain cominations) that occur below this cutoff
-
-    Deletes clusters with less than m_gens unique genes
-    """
-    print(
-        f'\nRemoving domain combinations that occur less than {cutoff} times')
-    domcounter = Counter()
-    domcounter.update([v for vals in clusdict.values() for v in vals
-                       if not v == '-'])
-    deldoms = {key for key in domcounter if domcounter[key] < cutoff}
-    print('  {} domain combinations are left, {} are removed'.format(
-        len(domcounter.keys()) - len(deldoms), len(deldoms)))
-    clus_no_deldoms = {}
-    for k, v in clusdict.items():
-        newv = ['-' if dom in deldoms else dom for dom in v]
-        doml = len({v for v in newv if not v == '-'})
-        if doml >= m_gens:
-            clus_no_deldoms[k] = newv
-        else:
-            if verbose:
-                print('  {} removed as it has less than min_genes'.format(k))
-    print(' {} clusters have less than {} genes and are excluded'.format(
-        len(clusdict.keys()) - len(clus_no_deldoms), m_gens))
-    return clus_no_deldoms
-
 
 def run_lda(domlist, no_below, no_above, num_topics, cores, outfolder,
             iters, chnksize, update_model=False, ldavis=True,
@@ -963,14 +932,13 @@ def read2dict(filepath, sep=',', header=False):
     return output
 
 
-def plot_convergence(logfile, iterations):
+def plot_convergence(logfile, iterations, outfile):
     """
     Plot convergence of log_likelihood of the model as calculated in logging
 
     logfile: str, filepath
     iterations: int
     """
-    outfile = logfile.split('.txt')[0] + '_convergence_likelihood.pdf'
     p = re.compile(r"(-*\d+\.\d+) per-word .* (\d+\.\d+) perplexity")
     matches = [p.findall(ln) for ln in open(logfile)]
     matches = [m for m in matches if len(m) > 0]

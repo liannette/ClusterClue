@@ -1,8 +1,8 @@
-from collections import Counter
+from collections import Counter, OrderedDict
 from typing import Dict, List, Tuple
 
 
-def count_non_emtpy_genes(genes: List[Tuple[str]]) -> int:
+def count_non_empty_genes(genes: List[Tuple[str]]) -> int:
     """
     Returns a dictionary with clusters that have at least one non-empty gene.
 
@@ -12,7 +12,7 @@ def count_non_emtpy_genes(genes: List[Tuple[str]]) -> int:
     Returns:
         int: The number of genes that are not empty.
     """
-    return len([g for g in genes if g != ("-",)])
+    return sum(1 for g in genes if g != ("-",))
 
 
 def parse_cluster_line(line: str) -> Tuple[str, List[Tuple[str]]]:
@@ -52,6 +52,7 @@ def read_clusters(in_file_path: str) -> Dict[str, List[Tuple[str]]]:
             clusters[cluster_id] = genes
     return clusters
 
+
 def format_cluster_to_string(cluster_id: str, genes: List[Tuple[str]]) -> str:
     """
     Formats a cluster as a string.
@@ -65,6 +66,40 @@ def format_cluster_to_string(cluster_id: str, genes: List[Tuple[str]]) -> str:
     """
     tokenised_genes = [";".join(gene) for gene in genes]
     return f"{cluster_id},{','.join(tokenised_genes)}\n"
+
+
+def count_gene_occurrences(clusters: Dict[str, List[Tuple[str]]]) -> Counter:
+    """
+    Counts the occurrences of each gene across all clusters.
+
+    Args:
+        clusters (dict): A dictionary with cluster ids as keys and lists of tuples,
+            each tuple representing the domains in a gene, as values.
+
+    Returns:
+        Counter: A Counter object with genes as keys and their counts as values.
+    """
+    return Counter(g for genes in clusters.values() for g in genes)
+
+
+def write_clusters(
+    clusters: Dict[str, List[Tuple[str]]], outfile_path: str
+) -> None:
+    """
+    Writes clusters to a specified output file.
+
+    Args:
+        clusters (dict): A dictionary with cluster identifiers as keys and lists of tuples,
+            each tuple representing the domains in a gene, as values.
+        outfile_path (str): The path to the output file where the clusters will be written.
+
+    Raises:
+        IOError: If the file cannot be written.
+    """
+    with open(outfile_path, "w") as f:
+        for cluster_id in sorted(clusters.keys()):
+            genes = clusters[cluster_id]
+            f.write(format_cluster_to_string(cluster_id, genes))
 
 
 def write_gene_counts(gene_counter: Counter, outfile_path: str) -> None:
@@ -123,3 +158,63 @@ def read_txt(in_file_path: str) -> List[str]:
     """
     with open(in_file_path, "r") as f:
         return [line.strip() for line in f]
+
+
+def remove_empty_clusters(
+    clusters: Dict[str, List[Tuple[str]]], 
+    min_genes: int, 
+    verbose: bool
+) -> Dict[str, List[Tuple[str]]]:
+    """
+    Removes clusters with fewer than `min_genes` genes from the clusters dictionary.
+
+    Parameters:
+        clusters (dict): The dictionary of clusters to filter.
+        min_genes (int): The minimum number of genes with domains a cluster should have.
+        verbose (bool): If True, print additional information during processing.
+
+    Returns:
+        dict: The filtered dictionary of clusters, where each cluster has at least `min_genes` genes.
+
+    """
+    filtered_clusters = OrderedDict()
+    for clus, genes in clusters.items():
+        n_genes = count_non_empty_genes(genes)
+        if n_genes < min_genes:
+            if verbose:
+                print(
+                    f"  Excluding {clus}: contains only {n_genes} genes with "
+                    f"domain hits."
+                )
+        else:
+            filtered_clusters[clus] = genes
+
+    if verbose:
+        excluded = len(clusters) - len(filtered_clusters)
+        if excluded:
+            print(
+                f"{excluded} clusters excluded for having less than {min_genes} "
+                "genes with domain hits."
+            )
+
+    return filtered_clusters
+
+
+def read_clusters_and_remove_empty(
+    in_file_path: str, 
+    min_genes: int, 
+    verbose: bool
+) -> Dict[str, List[Tuple[str]]]:
+    """
+    Reads clusters from a file and removes those with fewer than `min_genes` genes.
+
+    Parameters:
+        in_file_path (str): Path to the input file containing clusters.
+        min_genes (int): Minimum number of genes with domains a cluster should have.
+        verbose (bool): If True, print additional information during processing.
+
+    Returns:
+        dict: A dictionary of clusters with at least `min_genes` non-empty genes.
+    """
+    clusters = read_clusters(in_file_path)
+    return remove_empty_clusters(clusters, min_genes, verbose)

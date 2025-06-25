@@ -105,6 +105,20 @@ def get_commands():
         metavar="<float>",
         help="Cutoff for cluster similarity in redundancy filtering (default:0.95).",
     )
+    parser.add_argument(
+        "--remove_infrequent_genes",
+        action="store_true",
+        default=False,
+        help="If provided, infrequent genes will be removed from the bgcs."
+    )
+    parser.add_argument(
+        "--min_gene_occurrence",
+        default=3,
+        type=int,
+        metavar="<int>",
+        help="Remove tokenized genes that occur fewer than the specified "
+        "number of times in the data (default: 3).",
+    )
     # PRESTO-STAT
     parser.add_argument(
         "--stat_modules",
@@ -116,78 +130,113 @@ def get_commands():
         "subclusters in the input (default: None)",
     )
     parser.add_argument(
-        "--stat_min_gene_occurrence",
-        default=3,
-        type=int,
-        metavar="<int>",
-        help="Remove tokenized genes that occur fewer than the specified "
-        "number of times in the data (default: 3).",
-    )
-    parser.add_argument(
-        "-p",
         "--stat_pval_cutoff",
         dest="stat_pval_cutoff",
-        default=0.01,
+        default=0.1,
         type=float,
         help="P-value cutoff for determining a significant interaction in module detection "
-        "(default: 0.01)",
+        "(default: 0.1)",
         metavar="<float>",
     )
-    # # PRESTO-TOP
-    # parser.add_argument(
-    #     '--lda_model',
-    #     dest="top_lda_model",
-    #     default=None,
-    #     metavar="<file>",
-    #     help='Use PRESTO-TOP with existing sub-cluster motifs in an LDA model. '
-    #          'Supply here the path to the model. In that location there should be also '
-    #          'model.dict, model.expElogbeta.npy, model.id2word, model.state, '
-    #          'model.state.sstats.npy',
-    # )
-    # parser.add_argument(
-    #     "-t", "--topics",
-    #     dest="n_topics",
-    #     help="Amount of topics to use for the LDA model in PRESTO-TOP (default: 1000)",
-    #     default=1000,
-    #     type=int,
-    #     metavar="<int>"
-    # )
-
-    # parser.add_argument(
-    #     "-f", "--min_feat_score",
-    #     dest="min_feat_score",
-    #     help="Only include features until their scores add up to this number (default: 0.95) Can "
-    #          "be combined with feat_num, where feat_num features are selected or features that "
-    #          "add up to min_feat_score",
-    #     type=float,
-    #     default=0.95,
-    #     metavar="<float>"
-    # )
-    # parser.add_argument(
-    #     "-n", "--feat_num",
-    #     dest="feat_num",
-    #     help="Include the first feat_num features for each topic (default: 75)",
-    #     type=int,
-    #     default=75,
-    #     metavar="<int>"
-    # )
-    # parser.add_argument(
-    #     "-a", "--amplify",
-    #     dest="amplify",
-    #     help="Amplify the dataset in order to achieve a better LDA model. Each BGC will be present "
-    #          "amplify times in the dataset. After calculating the LDA model the dataset will be "
-    #          "scaled back to normal.",
-    #     type=int,
-    #     default=None,
-    #     metavar="<int>"
-    # )
-    # parser.add_argument(
-    #     "--visualise",
-    #     help="Make a visualation of the LDA model with pyLDAvis (html file). If number of topics "
-    #          "is too big this might fail. No visualisation will then be made",
-    #     default=False,
-    #     action="store_true"
-    # )
+    parser.add_argument(
+        "--stat_families",
+        dest="stat_n_families_range",
+        nargs="+",
+        type=int,
+        default=[],
+        metavar="<int>",
+        help="Specify one or more integers to define the number of families for "
+        "clustering STAT modules. Each integer represents a different clustering "
+        "configuration (default: off).",
+    )
+    # PRESTO-TOP
+    parser.add_argument(
+        '--top_model',
+        dest="top_model_file_path",
+        default=None,
+        metavar="<file>",
+        help='Use PRESTO-TOP with existing sub-cluster motifs in an LDA model. '
+             'Supply here the path to the model. In that location there should be also '
+             'model.dict, model.expElogbeta.npy, model.id2word, model.state, '
+             'model.state.sstats.npy',
+    )
+    parser.add_argument(
+        "--top_topics",
+        dest="top_n_topics",
+        help="Amount of topics to use for the LDA model in PRESTO-TOP (default: 1000)",
+        default=1000,
+        type=int,
+        metavar="<int>"
+    )
+    parser.add_argument(
+        "--top_amplify",
+        help="Amplify the dataset in order to achieve a better LDA model. Each BGC will be present "
+             "amplify times in the dataset. After calculating the LDA model the dataset will be "
+             "scaled back to normal.",
+        type=int,
+        default=None,
+        metavar="<int>"
+    )
+    parser.add_argument(
+        "--top_iterations",
+        help="Amount of iterations for training the LDA model (default: 500)",
+        default=500,
+        type=int,
+        metavar="<int>"
+    )
+    parser.add_argument(
+        "--top_chunksize",
+        default=2000,
+        type=int,
+        help='The chunksize used to train the model (default: 2000)',
+        metavar="<int>"
+    )
+    parser.add_argument(
+        "--top_update",
+        help="If provided and a model already exists, the existing model will be updated with "
+             "original parameters, new parameters cannot be passed in the LdaMulticore version.",
+        default=False,
+        action="store_true"
+    )
+    parser.add_argument(
+        "--top_visualise",
+        help="Make a visualation of the LDA model with pyLDAvis (html file). If number of topics "
+             "is too big this might fail. No visualisation will then be made",
+        default=False,
+        action="store_true"
+    )
+    parser.add_argument(
+        "--top_alpha",
+        default="symmetric",
+        help="alpha parameter for the LDA model, see gensim. Options: (a)symmetric, auto, or <int>"
+    )
+    parser.add_argument(
+        "--top_beta",
+        default="symmetric",
+        help="beta parameter for the LDA model, see gensim. Options: (a)symmetric, auto, or <int>"
+    )
+    parser.add_argument(
+        "--top_plot",
+        help="If provided: make plots about several aspects of the presto-top output",
+        default=False,
+        action="store_true"
+    )
+    parser.add_argument(
+        "--top_feat_num",
+        help="Include the first feat_num features for each topic (default: 75)",
+        type=int,
+        default=75,
+        metavar="<int>"
+    )
+    parser.add_argument(
+        "--top_min_feat_score",
+        help="Only include features until their scores add up to this number (default: 0.95) Can "
+             "be combined with feat_num, where feat_num features are selected or features that "
+             "add up to min_feat_score",
+        type=float,
+        default=0.95,
+        metavar="<float>"
+    )
     # parser.add_argument(
     #     "--classes",
     #     help="A file containing classes of the BGCs used in the analysis. First column should "
@@ -196,49 +245,12 @@ def get_commands():
     #     metavar="<file>"
     # )
     # parser.add_argument(
-    #     "--plot",
-    #     help="If provided: make plots about several aspects of the presto-top output",
-    #     default=False,
-    #     action="store_true"
-    # )
-    # parser.add_argument(
     #     "--known_subclusters",
     #     help="A tab delimited file with known subclusters. Should contain subclusters in the last "
     #          "column and BGC identifiers in the first column. Subclusters are comma separated "
     #          "genes represented as domains. Multiple domains in a gene are separated by "
     #          "semi-colon.",
     #     metavar="<file>"
-    # )
-    # parser.add_argument(
-    #     "-I", "--iterations",
-    #     help="Amount of iterations for training the LDA model (default: 1000)",
-    #     default=1000,
-    #     type=int,
-    #     metavar="<int>"
-    # )
-    # parser.add_argument(
-    #     "-C", "--chunksize",
-    #     default=2000,
-    #     type=int,
-    #     help='The chunksize used to train the model (default: 2000)',
-    #     metavar="<int>"
-    # )
-    # parser.add_argument(
-    #     "-u", "--update",
-    #     help="If provided and a model already exists, the existing model will be updated with "
-    #          "original parameters, new parameters cannot be passed in the LdaMulticore version.",
-    #     default=False,
-    #     action="store_true"
-    # )
-    # parser.add_argument(
-    #     "--alpha",
-    #     default="symmetric",
-    #     help="alpha parameter for the LDA model, see gensim. Options: (a)symmetric, auto, or <int>"
-    # )
-    # parser.add_argument(
-    #     "--beta",
-    #     default="symmetric",
-    #     help="beta parameter for the LDA model, see gensim. Options: (a)symmetric, auto, or <int>"
     # )
     # # Visualisation
     # parser.add_argument(
@@ -312,9 +324,23 @@ def main():
         cmd.domain_filtering,
         cmd.similarity_filtering,
         cmd.similarity_cutoff,
+        cmd.remove_infrequent_genes,
+        cmd.min_gene_occurrence,
         cmd.stat_modules_file_path,
-        cmd.stat_min_gene_occurrence,
         cmd.stat_pval_cutoff,
+        cmd.stat_n_families_range,
+        cmd.top_model_file_path,
+        cmd.top_n_topics, 
+        cmd.top_amplify, 
+        cmd.top_iterations,
+        cmd.top_chunksize, 
+        cmd.top_update, 
+        cmd.top_visualise,
+        cmd.top_alpha,
+        cmd.top_beta,
+        cmd.top_plot,
+        cmd.top_feat_num,
+        cmd.top_min_feat_score,
         cmd.cores,
         cmd.verbose,
     )
