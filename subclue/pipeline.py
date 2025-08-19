@@ -29,7 +29,7 @@ def run_subclue(
     # Step 1: Preprocessing clusters
     preprocess_dir_path = out_dir_path / "preprocess"
     gbks_file = preprocess_dir_path / "input_gbks_paths.txt"
-    clusters_file_path = run_preprocess(
+    domain_hits_file_path = run_preprocess(
         preprocess_dir_path,
         gbks_file,
         gbks_dir_path,
@@ -40,13 +40,13 @@ def run_subclue(
         verbose,
     )
 
-    # # Step 2: Detecting sub-clusters
-    # detected_motifs = out_dir_path / "detected_motifs.tsv"
-    # if detected_motifs.is_file():
-    #     if verbose:
-    #         print(f"\nSkipping motif detection, because the file already exists: {detected_motifs}")
-    # else:
-    #     detect_motifs(clusters_file_path, motifs_file_path, detected_motifs)
+    # Step 2: Detecting sub-clusters
+    detected_motifs = out_dir_path / "detected_motifs.tsv"
+    if detected_motifs.is_file():
+        if verbose:
+            print(f"\nSkipping motif detection, because the file already exists: {detected_motifs}")
+    else:
+        detect_motifs(domain_hits_file_path, motifs_file_path, detected_motifs, verbose)
 
     # # Step 3: Visualizing sub-clusters
     # data_dir = Path(__file__).parent.parent / "data"
