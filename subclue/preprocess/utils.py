@@ -1,3 +1,4 @@
+from typing import List
 
 
 def read_txt(in_file_path: str) -> List[str]:

@@ -2,7 +2,6 @@ import random
 from pathlib import Path
 from typing import List, Optional
 
-from subclue.preprocess.utils import write_clusters
 from subclue.preprocess.tokenize.orchestrator import TokenizeOrchestrator
 from subclue.preprocess.domain_filtering import perform_domain_filtering
 
