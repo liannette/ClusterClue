@@ -41,7 +41,7 @@ def run_preprocess(
     out_dir = Path(out_dir_path)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # Create the file containing all protein domains
+    # Step 1: Create the file containing all protein domains
     all_domains_file = out_dir / "domain_hits_all.txt"
     if all_domains_file.is_file():
         if verbose:
@@ -63,28 +63,24 @@ def run_preprocess(
             verbose,
         )
 
-    # # Step 2: Filter non-biosynthetic protein domains
-    # out_file_path = out_dir / "clusters_biosyn_domains.csv"
-    # if out_file_path.is_file():
-    #     if verbose:
-    #         print(
-    #             f"\nSkipping domain filtering, because the file already exists: {out_file_path}"
-    #         )
-    # else:
-    #     domain_filtering_file_path = (
-    #         Path(__file__).parent.parent.parent
-    #         / "data"
-    #         / "biosynthetic_domains.txt"
-    #     )
-    #     counts_file_path = out_dir / "clusters_biosyn_domains_gene_counts.txt"
-    #     perform_domain_filtering(
-    #         clusters_file_path,
-    #         domain_filtering_file_path,
-    #         out_file_path,
-    #         counts_file_path,
-    #         cores,
-    #         verbose,
-    #     )
-    # clusters_file_path = out_file_path
-    
-    return clusters_file_path
+    # Step 2: Filter non-biosynthetic protein domains
+    filtered_domains_file = out_dir / "domain_hits_filtered.txt"
+    if filtered_domains_file.is_file():
+        if verbose:
+            print(
+                f"\nSkipping domain filtering, because the file already exists: {filtered_domains_file}"
+            )
+    else:
+        domains_to_include_file_path = (
+            Path(__file__).parent.parent.parent
+            / "data"
+            / "biosynthetic_domains.txt"
+        )
+        perform_domain_filtering(
+            all_domains_file,
+            domains_to_include_file_path,
+            filtered_domains_file,
+            verbose,
+        )
+
+    return filtered_domains_file

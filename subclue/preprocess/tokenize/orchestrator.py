@@ -65,7 +65,7 @@ class TokenizeOrchestrator:
             verbose,
         )
 
-        # Step 3: Processing domtables into tokenized clusters
+        # Step 3: Processing domtables
         process_domtables(
             domtables_dir_path,
             all_domains_file,
