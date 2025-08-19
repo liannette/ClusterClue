@@ -1,36 +1,20 @@
-from pathlib import Path 
-import argparse
-import sys
 import re
 import numpy as np
-    
-    
-def parse_arguments():
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--clusters", dest="clusters_file", required=True,
-        metavar="<file>", help="File containing the tokenised bgcs")
-    parser.add_argument(
-        "--weights", dest="weights_file", required=True,
-        metavar="<file>", help="File containing the subcluster weights and thresholds")
-    parser.add_argument(
-        "--output", dest="output_file", required=True, metavar="<file>",
-        help="")
-    return parser.parse_args()
+import csv
+
+from collections import defaultdict
 
 
-def parse_clusters_file(clusters_file):
-    with open(clusters_file, "r") as infile:
-        clusters = [read_cluster(line) for line in infile]
-        clusters = {bgc_id: bgc_genes for bgc_id, bgc_genes in clusters}
-    return clusters
-
-
-def read_cluster(line):
-    bgc_id, tokenized_genes = line.rstrip().split(",", 1)
-    tokenized_genes = set(tokenized_genes.split(","))
-    tokenized_genes.discard("-") # genes without biosynthetic domains
-    return bgc_id, tokenized_genes
+def parse_domain_hits_file(domain_hits_file_path):
+    domains_in_bgc = defaultdict(lambda: defaultdict(set))
+    with open(domain_hits_file_path, "r") as f:
+        csv_reader = csv.DictReader(f, delimiter="\t")
+        for row in csv_reader:
+            bgc_id = row["bgc"]
+            protein_id = row["p_id"]
+            domain = row["domain"]
+            domains_in_bgc[bgc_id][protein_id].add(domain)
+    return domains_in_bgc
 
 
 def parse_weights_file(weights_file):
@@ -66,53 +50,58 @@ class GWM:
         weight_matrix = np.array([weights_present, weights_absent]).transpose()
         return cls(sc_id, n_matches, threshold, tokenised_genes, weight_matrix)
         
-    def calculate_score(self, cluster):
-        """
-        Calculates the subcluster score
-        """
-        score = sum(
-            self.weight_matrix[i][0] if gene in cluster else self.weight_matrix[i][1]
-            for i, gene in enumerate(self.tokenized_genes)
-            )
-        return score
+    def detect(self, domain_hits):
+        score = 0
+        hit_protein_ids = set()
+
+        for i, gene in enumerate(self.tokenized_genes):
+            domains = gene.split(";")
+            
+            # Check if any orf contains all domains
+            protein_with_all_domains = None
+            for p_id, protein_domains in domain_hits.items():
+                if all(d in protein_domains for d in domains):
+                    protein_with_all_domains = p_id
+                    break
+            
+            # Update score based on presence of matching protein
+            if protein_with_all_domains:
+                score += self.weight_matrix[i][0]
+                hit_protein_ids.add(protein_with_all_domains)  # Add hit protein ID immediately
+            else:
+                score += self.weight_matrix[i][1]
+
+        return score, hit_protein_ids
 
 
-def main(clusters_file, weights_file, output_file):
-    
-    clusters = parse_clusters_file(clusters_file)
+
+
+def main(domain_hits_file_path, weights_file, output_file, verbose):
+
     gwms = parse_weights_file(weights_file)
+    bgcs = parse_domain_hits_file(domain_hits_file_path)
     
     results = []
-    for bgc_id, bgc_genes in clusters.items():
+    for bgc_id, domain_hits in bgcs.items():
         for gwm in gwms.values():
-            score = gwm.calculate_score(bgc_genes)
+            score, protein_ids = gwm.detect(domain_hits)
             if score < gwm.threshold:
                 continue
-            common_genes = set(gwm.tokenized_genes) & bgc_genes
-            if len(common_genes) < 2:
+            if len(protein_ids) < 2:
                 continue
-            results.append([bgc_id, gwm, score, common_genes]) 
+            results.append([bgc_id, gwm, score, protein_ids])
 
     with open(output_file, "w") as outfile:
         # print header
-        print("\t".join(["cluster", "model", "n_matches", "threshold", "score", "tokenised_genes"]), 
+        print("\t".join(["bgc_id", "model_id", "model_n_matches", "model_score_threshold", "hit_score", "hit_protein_ids"]), 
               file=outfile)
         # print results
-        for bgc_id, gwm, score, genes in results:
+        for bgc_id, gwm, score, protein_ids in results:
             threshold = str(round(gwm.threshold, 3))
             score = str(round(score, 3))
-            genes = ",".join(sorted(genes))
-            print("\t".join([bgc_id, gwm.model_id, gwm.n_matches, threshold, score, genes]), 
+            protein_ids = ",".join(sorted(protein_ids))
+            print("\t".join([bgc_id, gwm.model_id, gwm.n_matches, threshold, score, protein_ids]), 
                   file=outfile)
 
-
-if __name__ == "__main__":
-
-    print("Command-line:", " ".join(sys.argv))
-    
-    args = parse_arguments()
-    clusters_file = Path(args.clusters_file)
-    weights_file = Path(args.weights_file)
-    output_file = Path(args.output_file)
-
-    main(clusters_file, weights_file, output_file)
+    if verbose:
+        print(f"Detected {len(results)} motifs in {len(bgcs)} BGCs using {len(gwms)} GWM models.")
