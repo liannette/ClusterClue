@@ -9,14 +9,12 @@ from subclue.preprocess.tokenize.process_gbk import process_gbks, write_gbk_path
 class TokenizeOrchestrator:
     def run(
         self,
-        clusters_file_path,
-        gene_counts_file_path,
+        all_domains_file,
         gbks_file,
         gbks_dir_path,
         hmm_file_path,
         exclude_name,
         include_contig_edge_clusters,
-        max_domain_overlap,
         cores,
         verbose,
     ):
@@ -28,8 +26,7 @@ class TokenizeOrchestrator:
         clusters to a file.
 
         Args:
-            clusters_file_path (str): Path to the output file where tokenized clusters will be saved.
-            gene_counts_file_path (str): Path to the output file where gene counts will be saved.
+            all_domains_file (str): Path to the output file where all domain hits will be saved.
             gbks_file (str): Path to a file containing paths to the input GenBank files.
             gbks_dir_path (str): Path to the folder containing gbk files.
             hmm_file_path (str): Path to the HMM file to be used as the database.
@@ -42,7 +39,7 @@ class TokenizeOrchestrator:
         Returns:
             str: Path to the tokenized clusters file.
         """
-        outdir_path = Path(clusters_file_path).parent
+        outdir_path = Path(all_domains_file).parent
 
         # Step 1: Processing gbk files into fasta files
         fastas_dir_path = outdir_path / "fastas"
@@ -69,22 +66,15 @@ class TokenizeOrchestrator:
         )
 
         # Step 3: Processing domtables into tokenized clusters
-        domain_hits_file_path = outdir_path / "all_domain_hits.txt"
         process_domtables(
             domtables_dir_path,
-            clusters_file_path,
-            gene_counts_file_path,
-            domain_hits_file_path,
-            max_domain_overlap,
+            all_domains_file,
             cores,
             verbose,
         )
 
         # Print paths
         if verbose:
-            print("\nTokenization complete.")
-            print(f"Tokenized clusters have been saved to {clusters_file_path}")
-            print(f"Gene counts have been saved to {gene_counts_file_path}")
-            print(f"Summary of domain hits has been saved to {domain_hits_file_path}")
+            print(f"Domain hits has been saved to {all_domains_file}")
 
-        return clusters_file_path
+        return all_domains_file
