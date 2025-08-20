@@ -57,133 +57,6 @@ from subclue.visualize.config import (
 )
 
 
-
-def get_commands():
-    parser = argparse.ArgumentParser(
-        description="A script to visualise BGCs and \
-        detected subclusters."
-    )
-    parser.add_argument(
-        "-f",
-        "--filenames",
-        help="A file that contains paths to\
-        gbk files of BGCs that will be plot, or one gbk file when --one is\
-        provided",
-        required=True,
-    )
-    parser.add_argument(
-        "-c",
-        "--domains_color_file",
-        help="A tsv file that\
-        contains domain_id\tr,g,b on each line. Must be specified, but can be\
-        an empty file in which domain colors will be added",
-    )
-    parser.add_argument(
-        "-d",
-        "--dom_hits_file",
-        help="A file in which Pfam\
-        domains are linked to genes: bgc\tg_id\tp_id\tlocation\torf_num\t\
-        tot_orf\tdomain\tq_range\tbitscore, location as start;end;strand \
-        qrange as start;end",
-    )
-    parser.add_argument(
-        "-g",
-        "--genes_color_file",
-        help="A tsv file that\
-        contains BGCname_GeneNumber\tr,g,b on each line. Is optional, but when\
-        used domains will not be colored",
-        default=False,
-    )
-    parser.add_argument("-o", "--outfile", help="Outfile filepath")
-    parser.add_argument(
-        "-a",
-        "--validated_subclusters",
-        help="A file containing validated\
-        subclusters",
-        default=False,
-    )
-    parser.add_argument(
-        "-b",
-        "--subclusterscout",
-        help="A file containing the hits of \
-        probabilistic subclusters",
-        default=False,
-    )
-    parser.add_argument(
-        "-l",
-        "--modules_lda",
-        help="A file with matches to\
-        topics originating from the LDA algorithm, optional.",
-        default=False,
-    )
-    parser.add_argument(
-        "-t",
-        "--topic_include",
-        help="If specified, only this\
-        one or more topics will be included in the visualisation",
-        default=False,
-        nargs="+",
-    )
-    parser.add_argument(
-        "-s",
-        "--modules_stat",
-        help="A file with BGCs linked to stat modules and the genes",
-        default=False,
-    )
-    parser.add_argument(
-        "-i",
-        "--include_stat_module",
-        help="If specified, only\
-        this one or more stat_module will be included in the visualisation",
-        default=False,
-        nargs="+",
-    )
-    parser.add_argument(
-        "--one",
-        help="Instead of a file containing locations\
-        of gbk files, there is one gbk supplied with -f gbkfile.gbk",
-        default=False,
-        action="store_true",
-    )
-    parser.add_argument(
-        "--include_stat_family",
-        help="If specified, only\
-        this one or more families will be included in the visualisation",
-        default=False,
-        nargs="+",
-    )
-    parser.add_argument(
-        "--include_stat_clan",
-        help="If specified, only\
-        this one or more families will be included in the visualisation",
-        default=False,
-        nargs="+",
-    )
-    parser.add_argument(
-        "--include_list",
-        dest="include_list",
-        default=False,
-        help="If provided only the domains in this file will be taken into \
-        account in the plotting of subclusters. One line should contain one \
-        Pfam ID (default: False - meaning all Pfams present in domhits file)",
-    )
-    parser.add_argument(
-        "--mibig_json_dir", dest="json_dir", default=False,
-        help="A directory containing JSON files with MIBIG annotations",
-    )
-    parser.add_argument(
-        "-v",
-        "--verbose",
-        dest="verbose",
-        required=False,
-        action="store_true",
-        default=False,
-        help="Prints more detailed information.",
-    )
-    return parser.parse_args()
-
-
-
 # --- Draw arrow for gene
 def draw_arrow(
     additional_tabs,
@@ -199,7 +72,6 @@ def draw_arrow(
     category,
     gid,
     domain_list,
-    only_color_genes,
 ):
     """
     SVG code for arrow:
@@ -213,7 +85,6 @@ def draw_arrow(
         - strand
     the edges are ABCDEFG starting from (X,Y)
     domain_list: list of elements to draw domains
-    only_color_genes: bool, only color genes
     """
 
     if strand == "+":
@@ -288,8 +159,6 @@ def draw_arrow(
 
     # paint domains. Domains on the tip of the arrow should not have corners sticking
     #  out of them
-    if only_color_genes:
-        domain_list = []
     for domain in domain_list:
         # [X, L, H, domain_accession, (domain_name, domain_description), color, color_contour]
         dX = domain[0]
@@ -514,29 +383,10 @@ def draw_line(X, Y, L):
     return line
 
 
-def _get_tokenized_gene(domain_ids, included_domains):
-    """
-    Remove domains that were not included in the analysis.
-    """
-    filtered_domains = []
-    for domain in domain_ids:
-        # get the domain name without subPfam suffix
-        # e.g. "PF00001_c1" -> "PF00001"
-        # e.g. "PF00001" -> "PF00001"
-        match = re.search(r"_c\d+$", domain)
-        if match:
-            domain_clean = domain[:match.start()]
-        else:
-            domain_clean = domain
-        # check if the domain is in the included domains
-        if domain_clean in included_domains:
-            filtered_domains.append(domain)
-    return ";".join(filtered_domains)
-
-
 def draw_bgc(
     bgc_gbk_path,
-    domain_hits,
+    all_domains,
+    gene_colors=None,
     motif_hit=None,
     included_domains=None,
     H=30,
@@ -595,25 +445,36 @@ def draw_bgc(
 
     # Draw arrows for each CDS feature
     color_contour = (0, 0, 0)
-    color_fill = (255, 255, 255)
     cds_num = 0
+
+    if motif_hit:
+        hit_protein_ids = dict()
+        for tokenised_gene, p_ids in motif_hit["genes"].items():
+            for p_id in p_ids:
+                hit_protein_ids[p_id] = tokenised_gene.split(";")
+
     for feature in seq_record.features:
         # Check if the feature is CDS
         if feature.type != "CDS":
             continue
-        
         cds_num += 1
-
-        # Get the identifier for the domain hits
-        identifier = f"{bgc_id}_{cds_num}"
-        domain_list = domain_hits[identifier] # X, Y, L, l, H, h, strand, color, color_contour, category, gid, domain_list
 
         if motif_hit:
             # Skip cds if not part of the detected motif
-            cds_domains = [info[3] for info in domain_list]
-            tokenized_gene = _get_tokenized_gene(cds_domains, included_domains)
-            if tokenized_gene not in motif_hit["genes"]:
+            protein_id = feature.qualifiers.get("protein_id", [""])[0]
+            if protein_id not in hit_protein_ids:
                 continue
+            # Dont color the gene, but the domains in the hit
+            domains_in_gene = all_domains[f"{bgc_id}_{cds_num}"] # [X, L, H, domain_acc, color, color_contour]
+            # Get all domains of the hit
+            domain_list = [d for d in domains_in_gene if d[3] in hit_protein_ids[protein_id]]
+            color_fill = (255, 255, 255)
+        else:
+            # Change this to color according to gene function/kind
+            gene_kind = feature.qualifiers.get("gene_kind", ["other"])[0]
+            color_fill = gene_colors.get(gene_kind, (255, 255, 255))
+            domain_list = []
+
 
         # Create a tag for CDS
         cds_tag = ""
@@ -650,7 +511,6 @@ def draw_bgc(
             category="",
             gid=cds_tag,
             domain_list=domain_list,
-            only_color_genes=False,
         )
         if arrow == "":
             print(f"  (ArrowerSVG) Warning: something went wrong with {bgc_id}")
@@ -678,9 +538,9 @@ def main(
     json_dir="",
     verbose=False,
 ):
-    # depreciated variables
-    only_color_genes = False
-    gene_colors = {}
+    # # depreciated variables
+    # only_color_genes = False
+    # gene_colors = {}
 
     # Read BGC paths
     if one: 
@@ -688,15 +548,25 @@ def main(
     else:
         bgc_gbk_paths = [Path(path) for path in read_txt(filenames)]
 
-    dom_hits = read_dom_hits(dom_hits_file, domains_color_file)
+    all_domains = read_dom_hits(dom_hits_file, domains_color_file)
     include_doms = read_txt(include_list) if include_list else None
     detected_motifs = read_detected_motifs(motif_hits) if motif_hits else None
 
+    # standard antismash colors
+    gene_colors = {
+        "biosynthetic": (129, 14, 21),
+        "biosynthetic-additional": (241, 109, 117),
+        "transport": (241, 109, 117),
+        "regulatory": (46, 139, 87),
+        "other": (128, 128, 128),
+    }
 
     if verbose:
         print("\nVisualising sub-clusters")
 
     with open(outfile, "w") as f:
+
+        bgc_gbk_paths = bgc_gbk_paths[:5]
         for bgc_path in bgc_gbk_paths:
             # Draw the molecule structure if MIBiG BGC
             json_file = Path(json_dir) / f"{bgc_path.stem}.json"
@@ -707,7 +577,8 @@ def main(
             # Draw the BGC
             svg_text = draw_bgc(
                 bgc_gbk_path=bgc_path,
-                domain_hits=dom_hits,
+                all_domains=all_domains,
+                gene_colors=gene_colors
             )
             f.write(svg_text)
 
@@ -715,44 +586,8 @@ def main(
             for motif_hit in detected_motifs.get(bgc_path.stem, []):
                 svg_text = draw_bgc(
                     bgc_gbk_path=bgc_path,
-                    domain_hits=dom_hits,
+                    all_domains=all_domains,
                     motif_hit=motif_hit,
                     included_domains=include_doms
                 )
                 f.write(svg_text)
-
-
-if __name__ == "__main__":
-    print("Command line arguments: ", sys.argv)
-    cmd = get_commands()
-
-    validated_subclusters = cmd.validated_subclusters
-    subclusterscout = cmd.subclusterscout
-    modules_lda = cmd.modules_lda
-    modules_stat = cmd.modules_stat
-    filenames = cmd.filenames
-    include_list = cmd.include_list
-    domains_color_file = cmd.domains_color_file
-    genes_color_file = cmd.genes_color_file
-    verbose = cmd.verbose
-    dom_hits_file = cmd.dom_hits_file
-    outfile = cmd.outfile
-    topic_include = cmd.topic_include
-    one = cmd.one
-    include_stat_module = cmd.include_stat_module
-    include_stat_family = cmd.include_stat_family
-    include_stat_clan = cmd.include_stat_clan
-    json_dir = cmd.json_dir
-
-    main(
-        filenames=filenames,
-        one=one,
-        outfile=outfile,
-        dom_hits_file=dom_hits_file,
-        include_list=include_list,
-        domains_color_file=domains_color_file,
-        validated_subclusters=validated_subclusters,
-        motif_hits=subclusterscout,
-        json_dir=json_dir,
-        verbose=verbose,
-    )

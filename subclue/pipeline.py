@@ -50,23 +50,23 @@ def run_subclue(
         if verbose:
             print(f"Detected motifs saved to: {detected_motifs}")
 
-    # # Step 3: Visualizing sub-clusters
-    # data_dir = Path(__file__).parent.parent / "data"
-    # domain_colors_file = data_dir / "domains_color_file.tsv"
-    # included_domains = data_dir / "biosynthetic_domains.txt"
-    # json_dir = data_dir / "mibig_json_4.0"
-    # out_html = out_dir_path / "detected_motifs.html"
+    # Step 3: Visualizing sub-clusters
+    data_dir = Path(__file__).parent.parent / "data"
+    domain_colors_file = data_dir / "domains_color_file.tsv"
+    included_domains = data_dir / "biosynthetic_domains.txt"
+    json_dir = data_dir / "mibig_json_4.0"
+    out_html = out_dir_path / "detected_motifs.html"
 
-    # visualize_subclusters(
-    #     filenames=gbks_file,
-    #     dom_hits_file=domain_hits_file_path,
-    #     include_list=included_domains,
-    #     domains_color_file=domain_colors_file,
-    #     outfile=out_html,
-    #     motif_hits=detected_motifs,
-    #     json_dir=json_dir,
-    #     verbose=verbose,
-    # )
-    # if verbose:
-    #     print(f"Visualisation saved to: {out_html}")
+    visualize_subclusters(
+        filenames=gbks_file,
+        dom_hits_file=domain_hits_file_path,
+        include_list=included_domains,
+        domains_color_file=domain_colors_file,
+        outfile=out_html,
+        motif_hits=detected_motifs,
+        json_dir=json_dir,
+        verbose=verbose,
+    )
+    if verbose:
+        print(f"Visualisation saved to: {out_html}")
         
