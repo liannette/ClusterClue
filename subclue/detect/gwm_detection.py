@@ -2,7 +2,7 @@ import re
 import numpy as np
 import csv
 
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 
 
 def parse_domain_hits_file(domain_hits_file_path):
@@ -52,22 +52,21 @@ class GWM:
         
     def detect(self, domain_hits):
         score = 0
-        hit_protein_ids = set()
+        hit_protein_ids = OrderedDict()
 
-        for i, gene in enumerate(self.tokenized_genes):
-            domains = gene.split(";")
+        for i, motif_gene in enumerate(self.tokenized_genes):
+            domains = motif_gene.split(";")
             
             # Check if any orf contains all domains
-            protein_with_all_domains = None
+            protein_with_all_domains = list()
             for p_id, protein_domains in domain_hits.items():
                 if all(d in protein_domains for d in domains):
-                    protein_with_all_domains = p_id
-                    break
+                    protein_with_all_domains.append(p_id)
             
             # Update score based on presence of matching protein
             if protein_with_all_domains:
                 score += self.weight_matrix[i][0]
-                hit_protein_ids.add(protein_with_all_domains)  # Add hit protein ID immediately
+                hit_protein_ids[motif_gene] = protein_with_all_domains
             else:
                 score += self.weight_matrix[i][1]
 
@@ -84,23 +83,24 @@ def main(domain_hits_file_path, weights_file, output_file, verbose):
     results = []
     for bgc_id, domain_hits in bgcs.items():
         for gwm in gwms.values():
-            score, protein_ids = gwm.detect(domain_hits)
+            score, hit = gwm.detect(domain_hits) 
+            # hit is a dict with the tokenised gene as key and a list of protein IDs as value
             if score < gwm.threshold:
                 continue
-            if len(protein_ids) < 2:
+            if len(hit) < 2:
                 continue
-            results.append([bgc_id, gwm, score, protein_ids])
+            results.append([bgc_id, gwm, score, hit])
 
     with open(output_file, "w") as outfile:
         # print header
-        print("\t".join(["bgc_id", "model_id", "model_n_matches", "model_score_threshold", "hit_score", "hit_protein_ids"]), 
+        print("\t".join(["bgc_id", "model_id", "model_n_matches", "model_score_threshold", "hit_score", "hit"]), 
               file=outfile)
         # print results
-        for bgc_id, gwm, score, protein_ids in results:
+        for bgc_id, gwm, score, hit in results:
             threshold = str(round(gwm.threshold, 3))
             score = str(round(score, 3))
-            protein_ids = ",".join(sorted(protein_ids))
-            print("\t".join([bgc_id, gwm.model_id, gwm.n_matches, threshold, score, protein_ids]), 
+            hit = ",".join([f"{gene}:{';'.join(p_ids)}" for gene, p_ids in hit.items()])
+            print("\t".join([bgc_id, gwm.model_id, gwm.n_matches, threshold, score, hit]), 
                   file=outfile)
 
     if verbose:

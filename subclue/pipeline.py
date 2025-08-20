@@ -47,19 +47,19 @@ def run_subclue(
             print(f"\nSkipping motif detection, because the file already exists: {detected_motifs}")
     else:
         detect_motifs(domain_hits_file_path, motifs_file_path, detected_motifs, verbose)
+        if verbose:
+            print(f"Detected motifs saved to: {detected_motifs}")
 
     # # Step 3: Visualizing sub-clusters
     # data_dir = Path(__file__).parent.parent / "data"
-    # dom_hits_file = preprocess_dir_path / "all_domain_hits.txt"
     # domain_colors_file = data_dir / "domains_color_file.tsv"
     # included_domains = data_dir / "biosynthetic_domains.txt"
     # json_dir = data_dir / "mibig_json_4.0"
     # out_html = out_dir_path / "detected_motifs.html"
 
-    # bgc_path = "input/mibig_gbk_4.0/BGC0002260.gbk"
     # visualize_subclusters(
     #     filenames=gbks_file,
-    #     dom_hits_file=dom_hits_file,
+    #     dom_hits_file=domain_hits_file_path,
     #     include_list=included_domains,
     #     domains_color_file=domain_colors_file,
     #     outfile=out_html,
@@ -67,3 +67,6 @@ def run_subclue(
     #     json_dir=json_dir,
     #     verbose=verbose,
     # )
+    # if verbose:
+    #     print(f"Visualisation saved to: {out_html}")
+        
