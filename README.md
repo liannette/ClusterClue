@@ -2,12 +2,12 @@
 
 ```bash
 # Create a new conda environment with python 3.12
-conda create -n SubClue python=3.12
+conda create -n clusterclue python=3.12
 
 # Activate the new environment
-conda activate SubClue
+conda activate clusterclue
 
-# install clusterclue and dependencies
+# install ClusterClue and dependencies
 pip install -e .[dev]
 
 # If HMMER is not installed on your system already, install it via conda
