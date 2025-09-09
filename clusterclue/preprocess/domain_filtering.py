@@ -5,7 +5,7 @@ from typing import Tuple, Set
 from multiprocessing import Pool
 from functools import partial
 
-from subclue.preprocess.utils import (
+from clusterclue.preprocess.utils import (
     read_clusters,
     write_clusters,
     read_txt,

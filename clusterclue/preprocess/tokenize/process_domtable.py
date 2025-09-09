@@ -6,7 +6,7 @@ from Bio import SearchIO
 from pathlib import Path
 from functools import partial
 
-from subclue.preprocess.utils import format_cluster_to_string
+from clusterclue.preprocess.utils import format_cluster_to_string
 
 
 def calculate_overlap(tup1, tup2):

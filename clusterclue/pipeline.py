@@ -1,11 +1,11 @@
 from pathlib import Path
 
-from subclue.preprocess.orchestrator import run_preprocess
-from subclue.detect.gwm_detection import main as detect_motifs
-from subclue.visualize.subcluster_arrower import main as visualize_subclusters
+from clusterclue.preprocess.orchestrator import run_preprocess
+from clusterclue.detect.gwm_detection import main as detect_motifs
+from clusterclue.visualize.subcluster_arrower import main as visualize_subclusters
 
 
-def run_subclue(
+def run_clusterclue(
     out_dir_path,
     motifs_file_path,
     gbks_dir_path,

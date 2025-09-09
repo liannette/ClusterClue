@@ -6,7 +6,7 @@ from typing import List
 from colorsys import hsv_to_rgb, rgb_to_hsv
 from random import uniform
 
-from subclue.visualize.config import internal_domain_margin
+from clusterclue.visualize.config import internal_domain_margin
 
 
 def new_color(gene_or_domain):

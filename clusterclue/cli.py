@@ -1,7 +1,7 @@
 import argparse
 import sys
 
-from subclue.pipeline import run_subclue
+from clusterclue.pipeline import run_clusterclue
 
 
 def get_commands():
@@ -100,7 +100,7 @@ def get_commands():
 
 def main():
     """
-    Main function to execute the SubClue pipeline.
+    Main function to execute ClusterClue.
 
     This function retrieves command line arguments, prints them if verbose mode is enabled,
     and then runs the main pipeline with the provided arguments.
@@ -120,7 +120,7 @@ def main():
         print(cmd)
 
     # Execute the main pipeline with provided arguments
-    run_subclue(
+    run_clusterclue(
         cmd.out_dir_path,
         cmd.motifs_file_path,
         cmd.gbk_dir_path,

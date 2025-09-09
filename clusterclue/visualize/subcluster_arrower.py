@@ -40,14 +40,14 @@ from pathlib import Path
 
 from Bio import SeqIO  # type: ignore
 
-from subclue.visualize.utils import (
+from clusterclue.visualize.utils import (
     read_txt, 
     read_detected_motifs, 
     read_dom_hits, 
     read_color_domains_file
 )
 
-from subclue.visualize.molecule import draw_mibig_compounds
+from clusterclue.visualize.molecule import draw_mibig_compounds
 
 from subclue.visualize.config import (
     internal_domain_margin,
