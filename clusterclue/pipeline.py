@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from clusterclue.preprocess.orchestrator import run_preprocess
-from clusterclue.detect.gwm_detection import main as detect_motifs
+from clusterclue.detect.motif_detection import main as detect_motifs
 from clusterclue.visualize.subcluster_arrower import main as visualize_subclusters
 
 

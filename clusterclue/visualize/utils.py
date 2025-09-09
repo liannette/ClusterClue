@@ -152,20 +152,17 @@ def read_txt(infile_path: str) -> List[str]:
 
 
 def read_detected_motifs(filename):
-    hits = dict()
+    hits = defaultdict(list)
     with open(filename, "r") as infile:
-        colnames = infile.readline().rstrip().split("\t")
-        for line in infile:
-            row_values = line.rstrip().split("\t")
-            bgc = row_values[colnames.index("cluster")]
-            if bgc not in hits:
-                hits[bgc] = list()
+        reader = csv.DictReader(infile, delimiter="\t")
+        for row in reader:
+            bgc = row["bgc_id"]
             hit = {
-                "motif_id": row_values[colnames.index("model")],
-                "n_matches": int(row_values[colnames.index("n_matches")]),
-                "threshold": row_values[colnames.index("threshold")],
-                "score": row_values[colnames.index("score")],
-                "genes": row_values[colnames.index("tokenised_genes")].split(","),
+                "motif_id": row["model"],
+                "n_matches": int(row["n_matches"]),
+                "threshold": row["threshold"],
+                "score": row["score"],
+                "genes": row["tokenised_genes"].split(","),
             }
             hits[bgc].append(hit)
     return hits
