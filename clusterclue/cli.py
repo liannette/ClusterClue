@@ -84,9 +84,8 @@ def get_commands():
     args = parser.parse_args()
 
     # Validation logic
-    if not args.existing_clusterfile:
-        if not args.gbk_dir_path or not args.hmm_file_path:
-            parser.error("Either --gbks and --hmm must be provided, or --clusters must be specified.")
+    if not args.existing_clusterfile and not args.gbk_dir_path:
+        parser.error("Either --gbks or --clusters must be provided.")
 
     return args
 

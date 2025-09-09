@@ -1,4 +1,3 @@
-import os
 import sys
 import csv
 from collections import defaultdict, OrderedDict
@@ -50,7 +49,7 @@ def read_dom_hits(dom_hits_file, domains_color_file, scaling=30, H=30):
     """Returns dict of {gene_identifier:[[domain_info]]}"""
 
     color_domains = read_color_domains_file(domains_color_file)
-    
+
     if not Path(dom_hits_file).is_file():
         sys.exit("Error (Arrower): " + dom_hits_file + " not found")
 
@@ -159,11 +158,11 @@ def read_detected_motifs(filename):
         for row in reader:
             bgc = row["bgc_id"]
             hit = {
-                "motif_id": row["model"],
-                "n_matches": int(row["n_matches"]),
-                "threshold": row["threshold"],
+                "motif_id": row["motif_id"],
+                "n_matches": int(row["n_training"]),
+                "threshold": row["score_threshold"],
                 "score": row["score"],
-                "genes": row["tokenised_genes"].split(","),
+                "genes": row["genes"].split(","),
             }
             hits[bgc].append(hit)
     return hits
