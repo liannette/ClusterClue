@@ -39,13 +39,6 @@ def get_commands():
     )
     # Preprocessing settings
     parser.add_argument(
-        "--hmm",
-        dest="hmm_file_path",
-        metavar="<file>",
-        help="Path to the HMM file containing protein domain HMMs that has been "
-        "processed with hmmpress.",
-    )
-    parser.add_argument(
         "--exclude_name",
         dest="exclude_name",
         default=["final"],
@@ -91,9 +84,8 @@ def get_commands():
     args = parser.parse_args()
 
     # Validation logic
-    if not args.existing_clusterfile:
-        if not args.gbk_dir_path or not args.hmm_file_path:
-            parser.error("Either --gbks and --hmm must be provided, or --clusters must be specified.")
+    if not args.existing_clusterfile and not args.gbk_dir_path:
+        parser.error("Either --gbks or --clusters must be provided.")
 
     return args
 
@@ -127,7 +119,6 @@ def main():
         cmd.existing_clusterfile,
         cmd.exclude_name,
         cmd.include_contig_edge_clusters,
-        cmd.hmm_file_path,
         cmd.max_domain_overlap,
         cmd.cores,
         cmd.verbose,

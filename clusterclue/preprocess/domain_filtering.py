@@ -1,6 +1,5 @@
 import re
 
-from collections import Counter
 from typing import Tuple, Set
 from multiprocessing import Pool
 from functools import partial

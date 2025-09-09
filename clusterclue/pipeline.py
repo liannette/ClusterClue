@@ -1,7 +1,8 @@
 from pathlib import Path
+from importlib.resources import files
 
 from clusterclue.preprocess.orchestrator import run_preprocess
-from clusterclue.detect.gwm_detection import main as detect_motifs
+from clusterclue.detect.motif_detection import main as detect_motifs
 from clusterclue.visualize.subcluster_arrower import main as visualize_subclusters
 
 
@@ -12,7 +13,6 @@ def run_clusterclue(
     existing_clusterfile,
     exclude_name,
     include_contig_edge_clusters,
-    hmm_file_path,
     max_domain_overlap,
     cores,
     verbose,
@@ -26,6 +26,13 @@ def run_clusterclue(
     # Outdated variables 
     include_contig_edge_clusters = True
 
+    # Paths to data files
+    data_dir = Path(files("clusterclue").joinpath("data"))
+    biosynthetic_domains_path = data_dir / "biosynthetic_domains.txt"
+    hmm_file_path = data_dir / "Pfam_100subs_tc.hmm"
+    domain_colors_file = data_dir / "domains_color_file.tsv"
+    json_dir = data_dir / "mibig_json_4.0"
+
     # Step 1: Preprocessing clusters
     preprocess_dir_path = out_dir_path / "preprocess"
     gbks_file = preprocess_dir_path / "input_gbks_paths.txt"
@@ -34,6 +41,7 @@ def run_clusterclue(
         existing_clusterfile,
         gbks_file,
         gbks_dir_path,
+        biosynthetic_domains_path,
         hmm_file_path,
         exclude_name,
         include_contig_edge_clusters,
@@ -51,18 +59,14 @@ def run_clusterclue(
         detect_motifs(clusters_file_path, motifs_file_path, detected_motifs)
 
     # Step 3: Visualizing sub-clusters
-    data_dir = Path(__file__).parent.parent / "data"
     dom_hits_file = preprocess_dir_path / "all_domain_hits.txt"
-    domain_colors_file = data_dir / "domains_color_file.tsv"
-    included_domains = data_dir / "biosynthetic_domains.txt"
-    json_dir = data_dir / "mibig_json_4.0"
     out_html = out_dir_path / "detected_motifs.html"
 
     bgc_path = "input/mibig_gbk_4.0/BGC0002260.gbk"
     visualize_subclusters(
         filenames=gbks_file,
         dom_hits_file=dom_hits_file,
-        include_list=included_domains,
+        include_list=biosynthetic_domains_path,
         domains_color_file=domain_colors_file,
         outfile=out_html,
         motif_hits=detected_motifs,

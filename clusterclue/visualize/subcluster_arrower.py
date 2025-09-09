@@ -7,6 +7,7 @@
 #                               April 2010                           #
 #                heavily modified by Jorge Navarro 2016              #
 #                    modified by Joris Louwen 2019                   #
+#             again heavily modified by Annette Lien 2024            #
 #               for the purpose of plotting sub-clusters             #
 ######################################################################
 
@@ -49,7 +50,7 @@ from clusterclue.visualize.utils import (
 
 from clusterclue.visualize.molecule import draw_mibig_compounds
 
-from subclue.visualize.config import (
+from clusterclue.visualize.config import (
     internal_domain_margin,
     domain_contour_thickness,
     gene_contour_thickness,

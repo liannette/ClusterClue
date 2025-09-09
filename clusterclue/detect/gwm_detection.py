@@ -1,1 +1,0 @@
-/home/lien002/nobackup_lien002/projects/subcluster_models/scripts/gwm_detection.py
