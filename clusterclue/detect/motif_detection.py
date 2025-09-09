@@ -27,9 +27,9 @@ def parse_motifs_file(motifs_file):
         # stop it end of file
         if not lines[0]:
             break
-        # add subcluster model
-        motif = GWM.from_lines(lines)
-        subcluster_motifs[motif.model_id] = motif
+        # add subcluster motif
+        motif = Motif.from_lines(lines)
+        subcluster_motifs[motif.motif_id] = motif
     infile.close()
     return subcluster_motifs
 
