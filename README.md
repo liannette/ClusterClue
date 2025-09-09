@@ -11,10 +11,10 @@ conda activate clusterclue
 git clone https://github.com/liannette/ClusterClue.git
 
 # Download the HMM profiles
-wget -P ClusterClue/data https://zenodo.org/records/7006969/files/Pfam_100subs_tc.hmm
+wget -P ClusterClue/clusterclue/data https://zenodo.org/records/7006969/files/Pfam_100subs_tc.hmm
 
 # Index the HMM profiles
-hmmpress ClusterClue/data/Pfam_100subs_tc.hmm 
+hmmpress ClusterClue/clusterclue/data/Pfam_100subs_tc.hmm 
 
 # install ClusterClue and dependencies
 pip install ClusterClue/
