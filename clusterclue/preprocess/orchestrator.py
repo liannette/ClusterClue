@@ -59,7 +59,7 @@ def run_preprocess(
             print(
                 f"\nUsing provided file of tokenized BGCs: {existing_clusterfile}."
             )
-        write_clusters(clusters, clusters_file_path)
+        clusters_file_path = existing_clusterfile
     else:
         if verbose:
             print("\nTokenizing the BGC genes into protein domain combinations")
