@@ -19,7 +19,8 @@ classifiers = [
 ]
 dependencies = [
     "biopython",
-    "rdkit"
+    "rdkit",
+    "numpy"
 ]
 
 [project.optional-dependencies]

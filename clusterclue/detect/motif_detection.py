@@ -2,7 +2,7 @@ from pathlib import Path
 import argparse
 import sys
 import re
-
+import numpy as np
 
 def parse_clusters_file(clusters_file):
     with open(clusters_file, "r") as infile:
