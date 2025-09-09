@@ -1,4 +1,5 @@
 import random
+from importlib.resources import files
 from pathlib import Path
 from typing import List, Optional
 
@@ -84,15 +85,12 @@ def run_preprocess(
                 f"\nSkipping domain filtering, because the file already exists: {out_file_path}"
             )
     else:
-        domain_filtering_file_path = (
-            Path(__file__).parent.parent.parent
-            / "data"
-            / "biosynthetic_domains.txt"
-        )
+        data_dir = Path(files("clusterclue").joinpath("data"))
+        biosynthetic_domains = data_dir / "biosynthetic_domains.txt"
         counts_file_path = out_dir / "clusters_biosyn_domains_gene_counts.txt"
         perform_domain_filtering(
             clusters_file_path,
-            domain_filtering_file_path,
+            biosynthetic_domains,
             out_file_path,
             counts_file_path,
             cores,
