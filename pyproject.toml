@@ -32,7 +32,7 @@ dev = [
 ClusterClue = "clusterclue.cli:main"
 
 [tool.setuptools.packages.find]
-# use find_packages() equivalent; this assumes default (find all packages)
+# find all packages
 where = ["."]
 include = ["*"]
 
