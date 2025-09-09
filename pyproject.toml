@@ -1,3 +1,40 @@
 [build-system]
 requires = ["setuptools >= 64"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "ClusterClue"
+version = "0.1.0"
+license = { text = "AGPL-3.0-or-later" }
+description = "Detect subcluster motifs in BGCs"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+authors = [
+    { name = "Annette Lien", email = "a.lien@posteo.de" }
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+]
+dependencies = [
+    "biopython",
+    "rdkit"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-cov"
+]
+
+[project.scripts]
+ClusterClue = "clusterclue.cli:main"
+
+[tool.setuptools.packages.find]
+# use find_packages() equivalent; this assumes default (find all packages)
+where = ["."]
+include = ["*"]
+
+[tool.setuptools]
+include-package-data = true
