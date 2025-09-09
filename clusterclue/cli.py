@@ -39,13 +39,6 @@ def get_commands():
     )
     # Preprocessing settings
     parser.add_argument(
-        "--hmm",
-        dest="hmm_file_path",
-        metavar="<file>",
-        help="Path to the HMM file containing protein domain HMMs that has been "
-        "processed with hmmpress.",
-    )
-    parser.add_argument(
         "--exclude_name",
         dest="exclude_name",
         default=["final"],
@@ -127,7 +120,6 @@ def main():
         cmd.existing_clusterfile,
         cmd.exclude_name,
         cmd.include_contig_edge_clusters,
-        cmd.hmm_file_path,
         cmd.max_domain_overlap,
         cmd.cores,
         cmd.verbose,

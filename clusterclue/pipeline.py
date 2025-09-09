@@ -13,7 +13,6 @@ def run_clusterclue(
     existing_clusterfile,
     exclude_name,
     include_contig_edge_clusters,
-    hmm_file_path,
     max_domain_overlap,
     cores,
     verbose,
@@ -29,10 +28,10 @@ def run_clusterclue(
 
     # Paths to data files
     data_dir = Path(files("clusterclue").joinpath("data"))
-    biosynthetic_domains = data_dir / "biosynthetic_domains.txt"
+    biosynthetic_domains_path = data_dir / "biosynthetic_domains.txt"
     hmm_file_path = data_dir / "Pfam_100subs_tc.hmm"
     domain_colors_file = data_dir / "domains_color_file.tsv"
-    #json_dir = data_dir / "mibig_json_4.0"
+    json_dir = data_dir / "mibig_json_4.0"
 
     # Step 1: Preprocessing clusters
     preprocess_dir_path = out_dir_path / "preprocess"
@@ -42,6 +41,7 @@ def run_clusterclue(
         existing_clusterfile,
         gbks_file,
         gbks_dir_path,
+        biosynthetic_domains_path,
         hmm_file_path,
         exclude_name,
         include_contig_edge_clusters,
@@ -66,7 +66,7 @@ def run_clusterclue(
     visualize_subclusters(
         filenames=gbks_file,
         dom_hits_file=dom_hits_file,
-        include_list=biosynthetic_domains,
+        include_list=biosynthetic_domains_path,
         domains_color_file=domain_colors_file,
         outfile=out_html,
         motif_hits=detected_motifs,
