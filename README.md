@@ -2,7 +2,7 @@
 
 ```bash
 # Create a new conda environment with python 3.12 and hmmer
-conda create -n clusterclue_testing2 -c bioconda python=3.12 hmmer=3.4  
+conda create -n clusterclue -c bioconda python=3.12 hmmer=3.4  
 
 # Activate the environment
 conda activate clusterclue
