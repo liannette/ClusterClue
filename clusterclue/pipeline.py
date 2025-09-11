@@ -65,12 +65,12 @@ def run_clusterclue(
     out_html = out_dir_path / "detected_motifs.html"
 
     visualize_subclusters(
-        filenames=gbks_file,
-        dom_hits_file=dom_hits_file,
-        include_list=biosynthetic_domains_path,
-        domains_color_file=domain_colors_file,
         outfile=out_html,
-        motif_hits=detected_motifs,
+        gbks_filepath=gbks_file,
+        dom_hits_filepath=dom_hits_file,
+        biosyn_domains_filepath=biosynthetic_domains_path,
+        domain_colors_filepath=domain_colors_file,
+        detected_motifs_filepath=detected_motifs,
         compounds_filepath=compounds_filepath,
         verbose=verbose,
     )

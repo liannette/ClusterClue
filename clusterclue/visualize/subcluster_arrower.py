@@ -1,25 +1,4 @@
-"""
-######################################################################
-#                                                                    #
-#           PLOT ARROWS FOR GENE CLUSTER GIVEN A GenBank FILE        #
-#                           Peter Cimermancic                        #
-#                               April 2010                           #
-#                heavily modified by Jorge Navarro 2016              #
-#                    modified by Joris Louwen 2019                   #
-#             again heavily modified by Annette Lien 2025            #
-#               for the purpose of plotting sub-clusters             #
-######################################################################
-
-Note:
-    -Only handles first locus from given gbk
-    -Currently all domain-combinations from a sub-cluster are visualised,
-        so if a domain-combination from a sub-cluster occurs multiple times
-        in a BGC, all those domain-combinations are visualised in the
-        sub-cluster.
-    -For each BGC, this script loads a given gbk file again for each
-        sub-cluster detected in the BGC. Script will get faster if this is
-        resolved.
-"""
+# Authors: Annette Lien (2025), Joris Louwen (2019), Jorge Navarro (2016), Peter Cimermancic (2010)
 
 import re
 import sys
@@ -541,22 +520,26 @@ def draw_bgc(
 
 
 def main(
-    filenames,
-    dom_hits_file,
-    include_list=None,
-    domains_color_file=None,
-    outfile="output.html",
-    motif_hits=None,
+    outfile,
+    gbks_filepath,
+    dom_hits_filepath,
+    biosyn_domains_filepath,
+    domain_colors_filepath,
+    detected_motifs_filepath=None,
     compounds_filepath=None,
     verbose=False,
 ):
     # Read BGC paths
-    bgc_gbk_paths = [Path(path) for path in read_txt(filenames)]
+    bgc_gbk_paths = [Path(path) for path in read_txt(gbks_filepath)]
 
-    dom_hits = read_dom_hits(dom_hits_file, domains_color_file)
-    domain_colors = read_color_domains_file(domains_color_file)
-    include_doms = read_txt(include_list) if include_list else None
-    detected_motifs = read_detected_motifs(motif_hits) if motif_hits else None
+    dom_hits = read_dom_hits(dom_hits_filepath)
+    domain_colors = read_color_domains_file(domain_colors_filepath)
+    biosyn_domains = read_txt(biosyn_domains_filepath)
+    detected_motifs = (
+        read_detected_motifs(detected_motifs_filepath)
+        if detected_motifs_filepath
+        else None
+    )
     compounds = read_compounds(compounds_filepath) if compounds_filepath else None
 
     if verbose:
@@ -596,7 +579,7 @@ def main(
                     cds_features=cds_features,
                     domain_hits=dom_hits,
                     motif_hit=motif_hit,
-                    included_domains=include_doms,
+                    included_domains=biosyn_domains,
                     domain_colors=domain_colors,
                 )
                 f.write(svg_text)

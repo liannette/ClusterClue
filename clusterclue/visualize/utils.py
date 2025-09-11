@@ -91,7 +91,7 @@ def read_dom_hits(dom_hits_file):
                 # This start is relative to the start of the gene
                 start = domain_start
             elif orf_strand == "-":
-                start = domain_end
+                start = orf_end - orf_start - domain_start - domain_width
             else:
                 sys.exit(f"Error: unknown strand {orf_strand}")
 
