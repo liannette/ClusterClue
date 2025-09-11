@@ -4,29 +4,8 @@ from collections import defaultdict, OrderedDict
 from pathlib import Path
 from typing import List
 from colorsys import hsv_to_rgb, rgb_to_hsv
-from random import uniform
 
 from clusterclue.visualize.config import internal_domain_margin
-
-
-def new_color(gene_or_domain):
-    # see https://en.wikipedia.org/wiki/HSL_and_HSV
-    # and http://stackoverflow.com/a/1586291
-
-    h = uniform(0, 1)  # all possible colors
-
-    if gene_or_domain == "gene":
-        s = uniform(0.15, 0.3)
-        v = uniform(0.98, 1.0)
-    elif gene_or_domain == "domain":
-        s = uniform(0.5, 0.75)  # lower: less saturated
-        v = uniform(0.7, 0.9)  # lower = darker
-    else:
-        sys.exit("unknown kind of color. Should be 'gene' or 'domain'")
-
-    r, g, b = tuple(int(c * 255) for c in hsv_to_rgb(h, s, v))
-
-    return [r, g, b]
 
 
 def read_color_domains_file(domains_color_file):
@@ -41,7 +20,7 @@ def read_color_domains_file(domains_color_file):
                     rgb = row[1].split(",")
                     color_domains[name] = [int(rgb[x]) for x in range(3)]
     else:
-        print("Domains colors file was not found. A new file will be created")
+        sys.exit(f"Error: Domains colors file was not found: {domains_color_file}")
     return color_domains
 
 
@@ -49,7 +28,7 @@ def read_dom_hits(dom_hits_file, domains_color_file, scaling=30, H=30):
     """Returns dict of {gene_identifier:[[domain_info]]}"""
 
     if not Path(dom_hits_file).is_file():
-        sys.exit(f"Error: {dom_hits_file} not found")
+        sys.exit(f"Error: Domain hits file not found: {dom_hits_file}")
 
     domain_colors = read_color_domains_file(domains_color_file)
 
