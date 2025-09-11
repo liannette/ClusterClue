@@ -344,10 +344,10 @@ def draw_line(X, Y, L):
     """
     Draw a line below genes
     """
-    line = '<line x1="{}" y1="{}" x2="{}" y2="{}" style="stroke:rgb(70,70,70); stroke-width:{} "/>\n'.format(
-        str(X), str(Y), str(X + L), str(Y), str(stripe_thickness)
+    return (
+        f'<line x1="{X}" y1="{Y}" x2="{X + L}" y2="{Y}" '
+        f'style="stroke:rgb(70,70,70); stroke-width:{stripe_thickness} "/>\n'
     )
-    return line
 
 
 def _get_tokenized_gene(domain_ids, included_domains):
@@ -383,7 +383,34 @@ def draw_bgc(
     scaling=30,
 ):
     """
-    Draw the BGC or the detected motif in SVG format.
+    Renders a BGC (Biosynthetic Gene Cluster) or detected motif as SVG visualization.
+
+    This function creates an SVG representation of a full biosynthetic gene cluster of
+    a specific motif. It draws gene arrows with domain information and includes
+    relevant annotations from the GenBank file.
+
+    Args:
+        bgc_gbk_path (Path): Path to the BGC GenBank file.
+        domain_hits (dict): Dictionary mapping gene identifiers to their domain hits.
+            Format: {"{bgc_id}_{cds_num}": [domain_info_list]}.
+        motif_hit (dict, optional): Information about a detected motif. If provided, only genes
+            matching the motif will be drawn. Dictionary should contain keys:
+            - motif_id: Identifier for the motif
+            - n_matches: Number of matches found
+            - threshold: Detection threshold
+            - score: Motif score
+            - genes: List of genes belonging to the motif
+        included_domains (list, optional): List of domain names to include in visualization.
+        H (int, optional): Height of gene arrows in SVG units. Defaults to 30.
+        h (int, optional): Height of gene arrow head edge in SVG units. Defaults to 5.
+        l (int, optional): Maximum length of gene arrow head in SVG units. Defaults to 12.
+        mX (int, optional): Horizontal padding in SVG units. Defaults to 10.
+        mY (int, optional): Vertical padding in SVG units. Defaults to 10.
+        scaling (int, optional): Scaling factor to convert sequence positions to SVG coordinates.
+            Larger values create a more compact visualization. Defaults to 30.
+
+    Returns:
+        str: SVG markup as a string that can be embedded in HTML or saved to a file.
     """
     # -- Create SVG header
     header = "<div></div>\n"
@@ -496,10 +523,6 @@ def main(
     compounds_filepath=None,
     verbose=False,
 ):
-    # depreciated variables
-    only_color_genes = False
-    gene_colors = {}
-
     # Read BGC paths
     bgc_gbk_paths = [Path(path) for path in read_txt(filenames)]
 
