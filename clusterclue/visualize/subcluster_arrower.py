@@ -350,28 +350,31 @@ def draw_line(X, Y, L):
     )
 
 
-def _get_tokenized_gene(domain_ids, included_domains):
+def _get_tokenized_gene(domains, included_domains):
     """
     Remove domains that were not included in the analysis.
     """
     filtered_domains = []
-    for domain in domain_ids:
+    for domain in domains:
+        domain_name = domain[3]
         # get the domain name without subPfam suffix
         # e.g. "PF00001_c1" -> "PF00001"
         # e.g. "PF00001" -> "PF00001"
-        match = re.search(r"_c\d+$", domain)
+        match = re.search(r"_c\d+$", domain_name)
         if match:
-            domain_clean = domain[: match.start()]
+            domain_clean = domain_name[: match.start()]
         else:
-            domain_clean = domain
+            domain_clean = domain_name
         # check if the domain is in the included domains
         if domain_clean in included_domains:
-            filtered_domains.append(domain)
+            filtered_domains.append(domain_name)
     return ";".join(filtered_domains)
 
 
 def draw_bgc(
-    bgc_gbk_path,
+    bgc_id,
+    bgc_length,
+    cds_features,
     domain_hits,
     motif_hit=None,
     included_domains=None,
@@ -412,9 +415,8 @@ def draw_bgc(
     Returns:
         str: SVG markup as a string that can be embedded in HTML or saved to a file.
     """
-    # -- Create SVG header
+    # Create SVG header
     header = "<div></div>\n"
-
     if motif_hit:
         # Smaller font for motif ID
         text = (
@@ -423,40 +425,27 @@ def draw_bgc(
             f"score: {motif_hit['score']}, n_genes: {len(motif_hit['genes'])}"
         )
         header += f"<div><h3>{text}</h3></div>\n"
-
     svg_text = header
 
-    bgc_id = bgc_gbk_path.stem
-    seq_record = list(SeqIO.parse(bgc_gbk_path, "genbank"))[0]
-
-    svg_width = len(seq_record) / scaling + 2 * mX
+    svg_width = bgc_length / scaling + 2 * mX
     svg_height = 2 * h + H + 2 * mY
     svg_text += f'<svg width="{svg_width}" height="{svg_height}">\n'
 
     add_tabs = "\t"
 
     # draw a line that corresponds to cluster size
-    line = draw_line(mX, mY + h + H / 2, len(seq_record) / scaling)
+    line = draw_line(mX, mY + h + H / 2, bgc_length / scaling)
     svg_text += f"{add_tabs}{line}"
 
     # Draw arrows for each CDS feature
     color_contour = (0, 0, 0)
     color_fill = (255, 255, 255)
-    cds_num = 0
-    for feature in seq_record.features:
-        # Check if the feature is CDS
-        if feature.type != "CDS":
-            continue
-
-        cds_num += 1
-
-        # Get the identifier for the domain hits
-        identifier = f"{bgc_id}_{cds_num}"
-        domain_list = domain_hits[identifier]
+    for cds_num, feature in enumerate(cds_features, start=1):
+        # Get the domain hits for this CDS
+        cds_domains = domain_hits[f"{bgc_id}_{cds_num}"]
 
         if motif_hit:
             # Skip cds if not part of the detected motif
-            cds_domains = [info[3] for info in domain_list]
             tokenized_gene = _get_tokenized_gene(cds_domains, included_domains)
             if tokenized_gene not in motif_hit["genes"]:
                 continue
@@ -500,7 +489,7 @@ def draw_bgc(
             color=color_fill,
             color_contour=color_contour,
             gid=cds_tag,
-            domain_list=domain_list,
+            domain_list=cds_domains,
         )
         if arrow == "":
             print(f"  (ArrowerSVG) Warning: something went wrong with {bgc_id}")
@@ -546,9 +535,15 @@ def main(
                 svg_text = draw_compounds(compounds.get(bgc_id, []))
                 f.write(svg_text)
 
+            seq_record = list(SeqIO.parse(bgc_path, "genbank"))[0]
+            bgc_length = len(seq_record)
+            cds_features = [f for f in seq_record.features if f.type == "CDS"]
+
             # Draw the full BGC
             svg_text = draw_bgc(
-                bgc_gbk_path=bgc_path,
+                bgc_id=bgc_id,
+                bgc_length=bgc_length,
+                cds_features=cds_features,
                 domain_hits=dom_hits,
             )
             f.write(svg_text)
@@ -556,7 +551,9 @@ def main(
             # Draw the detected motifs if available
             for motif_hit in detected_motifs.get(bgc_path.stem, []):
                 svg_text = draw_bgc(
-                    bgc_gbk_path=bgc_path,
+                    bgc_id=bgc_id,
+                    bgc_length=bgc_length,
+                    cds_features=cds_features,
                     domain_hits=dom_hits,
                     motif_hit=motif_hit,
                     included_domains=include_doms,
