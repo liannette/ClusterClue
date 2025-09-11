@@ -43,13 +43,11 @@ from clusterclue.visualize.utils import (
 
 def _get_gene_coordinates(X, Y, L, l, H, h, strand):
     if strand == "+":
-        head_end = L
         if L < l:
             # squeeze arrow if length shorter than head length
             A = [X, Y - h]
             B = [X + L, Y + H / 2]
             C = [X, Y + H + h]
-            head_start = 0
             points = [A, B, C]
         else:
             A = [X, Y]
@@ -59,19 +57,14 @@ def _get_gene_coordinates(X, Y, L, l, H, h, strand):
             E = [X + L - l, Y + H + h]
             F = [X + L - l, Y + H]
             G = [X, Y + H]
-            head_start = (
-                L - l
-            )  # relative to the start of the gene, not absolute coords.
             points = [A, B, C, D, E, F, G]
 
     elif strand == "-":
-        head_start = 0
         if L < l:
             # squeeze arrow if length shorter than head length
             A = [X, Y + H / 2]
             B = [X + L, Y - h]
             C = [X + L, Y + H + h]
-            head_end = L
             points = [A, B, C]
         else:
             A = [X + L, Y]
@@ -81,12 +74,29 @@ def _get_gene_coordinates(X, Y, L, l, H, h, strand):
             E = [X + l, Y + H + h]
             F = [X + l, Y + H]
             G = [X + L, Y + H]
-            head_end = l
             points = [A, B, C, D, E, F, G]
+    return points
 
-    head_length = head_end - head_start
 
-    return points, head_start, head_end, head_length
+def _get_arrow_head_location(L, l, strand):
+    if strand == "+":
+        head_end = L
+        # no tail
+        if L < l:
+            head_start = 0
+        # tail
+        else:
+            head_start = L - l  # relative to start of gene, not absolute coords.
+    elif strand == "-":
+        head_start = 0
+        # no tail
+        if L < l:
+            head_end = L
+        # tail
+        else:
+            head_end = l
+
+    return head_start, head_end
 
 
 def _get_domain_coordinates(
@@ -262,29 +272,26 @@ def draw_arrow(
     if strand not in ["+", "-"]:
         return ""
 
-    gene_points, head_start, head_end, head_length = _get_gene_coordinates(
-        X, Y, L, l, H, h, strand
-    )
+    arrow_head_start, arrow_head_end = _get_arrow_head_location(L, l, strand)
+    arrow_head_length = arrow_head_end - arrow_head_start
 
-    if head_length == 0:
+    if arrow_head_length == 0:
         return ""
 
+    svg_str = f"{additional_tabs}<g>\n"
+
+    gene_points = _get_gene_coordinates(X, Y, L, l, H, h, strand)
     gid = gid.replace("\n", " | ")
 
-    svg_str = f"{additional_tabs}<g>\n"
     svg_str += f"{additional_tabs}\t<title>{gid}</title>\n"
-
-    gene_points_str = " ".join(f"{point[0]},{point[1]}" for point in gene_points)
-    gene_fill_str = ",".join([str(val) for val in color])
-    gene_stroke_str = ",".join([str(val) for val in color_contour])
     svg_str += (
-        f'{additional_tabs}\t<polygon class="{gid}" points="{gene_points_str}" '
-        f'fill="rgb({gene_fill_str})" fill-opacity="1.0" '
-        f'stroke="rgb({gene_stroke_str})" stroke-width="{gene_contour_thickness}" />\n'
+        f'{additional_tabs}\t<polygon class="{gid}" '
+        f'points="{" ".join(f"{point[0]},{point[1]}" for point in gene_points)}" '
+        f'fill="rgb({",".join([str(val) for val in color])})" fill-opacity="1.0" '
+        f'stroke="rgb({",".join([str(val) for val in color_contour])})" '
+        f'stroke-width="{gene_contour_thickness}" />\n'
     )
 
-    # draw domains.
-    # Domains on the tip of the arrow should not have corners sticking out of them
     for domain in domain_list:
         # [X, L, H, domain_accession, (domain_name, domain_description), color, color_contour]
         domain_X = domain[0]
@@ -296,6 +303,7 @@ def draw_arrow(
         domain_fill = domain[5]
         domain_stroke = domain[6]
 
+        # Domains on the tip of the arrow should not have corners sticking out
         domain_points = _get_domain_coordinates(
             domain_X,
             domain_L,
@@ -306,12 +314,11 @@ def draw_arrow(
             H,
             h,
             strand,
-            head_start,
-            head_end,
-            head_length,
+            arrow_head_start,
+            arrow_head_end,
+            arrow_head_length,
         )
-        domain_fill_str = ",".join([str(val) for val in domain_fill])
-        domain_stroke_str = ",".join([str(val) for val in domain_stroke])
+
         domain_points_str = " ".join(
             f"{point[0]},{point[1]}" for point in domain_points
         )
@@ -322,8 +329,8 @@ def draw_arrow(
             f'{additional_tabs}\t\t<polygon class="{domain_acc}" '
             f'points="{domain_points_str}" stroke-linejoin="round" '
             f'width="{domain_L}" height="{domain_H}" '
-            f'fill="rgb({domain_fill_str})" '
-            f'stroke="rgb({domain_stroke_str})" '
+            f'fill="rgb({",".join([str(val) for val in domain_fill])})" '
+            f'stroke="rgb({",".join([str(val) for val in domain_stroke])})" '
             f'stroke-width="{domain_contour_thickness}" opacity="0.75" />\n'
         )
         svg_str += f"{additional_tabs}\t</g>\n"
@@ -451,15 +458,15 @@ def draw_bgc(
 
         # define arrow's start and end
         # http://biopython.org/DIST/docs/api/Bio.SeqFeature.FeatureLocation-class.html#start
-        arrow_start = int(feature.location.start) / scaling
-        arrow_end = int(feature.location.end) / scaling
-        arrow_length = arrow_end - arrow_start
+        gene_start = int(feature.location.start) / scaling
+        gene_end = int(feature.location.end) / scaling
+        gene_length = gene_end - gene_start
 
         arrow = draw_arrow(
             additional_tabs=add_tabs,
-            X=arrow_start + mX,
+            X=gene_start + mX,
             Y=mY + h,
-            L=arrow_length,
+            L=gene_length,
             l=l,
             H=H,
             h=h,
