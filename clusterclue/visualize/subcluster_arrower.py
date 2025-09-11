@@ -252,7 +252,7 @@ def draw_arrow(
     strand,
     color,
     color_contour,
-    gid,
+    cds_tag,
     domain_list,
 ):
     """
@@ -280,11 +280,10 @@ def draw_arrow(
     svg_str = f"{additional_tabs}<g>\n"
 
     gene_points = _get_gene_coordinates(X, Y, L, l, H, h, strand)
-    gid = gid.replace("\n", " | ")
 
-    svg_str += f"{additional_tabs}\t<title>{gid}</title>\n"
+    svg_str += f"{additional_tabs}\t<title>{cds_tag}</title>\n"
     svg_str += (
-        f'{additional_tabs}\t<polygon class="{gid}" '
+        f'{additional_tabs}\t<polygon class="{cds_tag}" '
         f'points="{" ".join(f"{point[0]},{point[1]}" for point in gene_points)}" '
         f'fill="rgb({",".join([str(val) for val in color])})" fill-opacity="1.0" '
         f'stroke="rgb({",".join([str(val) for val in color_contour])})" '
@@ -371,6 +370,23 @@ def _get_tokenized_gene(domains, included_domains):
     return ";".join(filtered_domains)
 
 
+def _create_cds_tag(feature):
+    """
+    Create a tag for CDS feature to be used in SVG title.
+    """
+    cds_tag = []
+    if "gene" in feature.qualifiers:
+        cds_tag.append(f"gene: {feature.qualifiers['gene'][0]}")
+    if "locus_tag" in feature.qualifiers:
+        cds_tag.append(f"locus_tag: {feature.qualifiers['locus_tag'][0]}")
+    if "protein_id" in feature.qualifiers:
+        cds_tag.append(f"protein_id: {feature.qualifiers['protein_id'][0]}")
+    if "product" in feature.qualifiers:
+        cds_tag.append(f"product: {feature.qualifiers['product'][0]}")
+
+    return " | ".join(cds_tag)
+
+
 def draw_bgc(
     bgc_id,
     bgc_length,
@@ -450,17 +466,6 @@ def draw_bgc(
             if tokenized_gene not in motif_hit["genes"]:
                 continue
 
-        # Create a tag for CDS
-        cds_tag = ""
-        if "gene" in feature.qualifiers:
-            cds_tag += feature.qualifiers["gene"][0]
-        if "locus_tag" in feature.qualifiers:
-            locus_tag = feature.qualifiers["locus_tag"][0]
-            cds_tag += f" ({locus_tag})"
-        if "product" in feature.qualifiers:
-            product = feature.qualifiers["product"][0]
-            cds_tag += f"\n{product}"
-
         # Convert numerical strand to string representation
         strand = feature.location.strand
         strand = (
@@ -488,7 +493,7 @@ def draw_bgc(
             strand=strand,
             color=color_fill,
             color_contour=color_contour,
-            gid=cds_tag,
+            cds_tag=_create_cds_tag(feature),
             domain_list=cds_domains,
         )
         if arrow == "":
