@@ -27,54 +27,21 @@ from math import atan2, pi, sin
 from pathlib import Path
 from Bio import SeqIO  # type: ignore
 
-from clusterclue.visualize.utils import (
-    read_txt,
-    read_detected_motifs,
-    read_dom_hits,
-)
-
 from clusterclue.visualize.molecule import read_compounds, draw_compounds
-
 from clusterclue.visualize.config import (
     internal_domain_margin,
     domain_contour_thickness,
     gene_contour_thickness,
     stripe_thickness,
 )
+from clusterclue.visualize.utils import (
+    read_txt,
+    read_detected_motifs,
+    read_dom_hits,
+)
 
 
-# --- Draw arrow for gene
-def draw_arrow(
-    additional_tabs,
-    X,
-    Y,
-    L,
-    l,  # noqa: E741, E741
-    H,
-    h,
-    strand,
-    color,
-    color_contour,
-    category,
-    gid,
-    domain_list,
-    only_color_genes,
-):
-    """
-    SVG code for arrow:
-        - (X,Y) ... upper left (+) or right (-) corner of the arrow
-        - L ... arrow length
-        - H ... arrow height
-        - strand
-        - h ... arrow head edge width
-        - l ... arrow head length
-        - color
-        - strand
-    the edges are ABCDEFG starting from (X,Y)
-    domain_list: list of elements to draw domains
-    only_color_genes: bool, only color genes
-    """
-
+def _get_arrow_coordinates(X, Y, L, l, H, h, strand):
     if strand == "+":
         head_end = L
         if L < l:
@@ -117,39 +84,69 @@ def draw_arrow(
             head_end = l
             points = [A, B, C, D, E, F, G]
 
-    else:
+    head_length = head_end - head_start
+
+    return points, head_start, head_end, head_length
+
+
+# --- Draw arrow for gene
+def draw_gene_arrow(
+    additional_tabs,
+    X,
+    Y,
+    L,
+    l,  # noqa: E741, E741
+    H,
+    h,
+    strand,
+    color,
+    color_contour,
+    gid,
+    domain_list,
+):
+    """
+    SVG code for arrow:
+        - (X,Y) ... upper left (+) or right (-) corner of the arrow
+        - L ... arrow length
+        - H ... arrow height
+        - strand
+        - h ... arrow head edge width
+        - l ... arrow head length
+        - color
+        - strand
+    the edges are ABCDEFG starting from (X,Y)
+    domain_list: list of elements to draw domains
+    only_color_genes: bool, only color genes
+    """
+    if strand not in ["+", "-"]:
         return ""
 
-    head_length = head_end - head_start
+    points, head_start, head_end, head_length = _get_arrow_coordinates(
+        X, Y, L, l, H, h, strand
+    )
+
     if head_length == 0:
         return ""
 
-    points_coords = []
-    for point in points:
-        points_coords.append(str(int(point[0])) + "," + str(int(point[1])))
+    gid = gid.replace("\n", " | ")
 
-    arrow = additional_tabs + "\t<g>\n"
+    svg_str = f"{additional_tabs}<g>\n"
+    svg_str += f"{additional_tabs}\t<title>{gid}</title>\n"
 
-    # unidentified genes don't have a title and have a darker contour
-    if gid != "NoName":
-        arrow += additional_tabs + "\t\t<title>" + gid + "</title>\n"
-    else:
-        color_contour = [50, 50, 50]
-
-    arrow += '{}\t\t<polygon class="{}" '.format(additional_tabs, gid)
-    arrow += 'points="{}" fill="rgb({})" '.format(
-        " ".join(points_coords), ",".join([str(val) for val in color])
+    points_str = " ".join(f"{point[0]},{point[1]}" for point in points)
+    fill_str = ",".join([str(val) for val in color])
+    stroke_str = ",".join([str(val) for val in color_contour])
+    svg_str += (
+        f'{additional_tabs}\t<polygon class="{gid}" points="{points_str}" '
+        f'fill="rgb({fill_str})" fill-opacity="1.0" '
+        f'stroke="rgb({stroke_str})" stroke-width="{gene_contour_thickness}" />\n'
     )
-    arrow += 'fill-opacity="1.0" stroke="rgb({})" '.format(
-        ",".join([str(val) for val in color_contour])
-    )
-    arrow += 'stroke-width="{}" {} />\n'.format(str(gene_contour_thickness), category)
 
-    # paint domains. Domains on the tip of the arrow should not have corners sticking
-    #  out of them
-    if only_color_genes:
-        domain_list = []
+    # draw domains.
+    # Domains on the tip of the arrow should not have corners sticking out of them
     for domain in domain_list:
+        svg_str += f"{additional_tabs}\t<g>\n"
+
         # [X, L, H, domain_accession, (domain_name, domain_description), color, color_contour]
         dX = domain[0]
         dL = domain[1]
@@ -160,14 +157,14 @@ def draw_arrow(
         dcolor = domain[5]
         dccolor = domain[6]
 
-        arrow += additional_tabs + "\t\t<g>\n"
-        arrow += '{}\t\t\t<title>{} ({})\n"{}"</title>\n'.format(
-            additional_tabs, dname, dacc, ddesc
-        )
+        svg_str += f'{additional_tabs}\t\t<title>{dname} ({dacc}) "{ddesc}"</title>\n'
+
+        fill_str = ",".join([str(val) for val in dcolor])
+        stroke_str = ",".join([str(val) for val in dccolor])
 
         if strand == "+":
-            # calculate how far from head_start we (the horizontal guide at y=Y+internal_domain_margin)
-            #  would crash with the slope
+            # calculate how far from head_start we would crash with the slope
+            # (the horizontal guide at y=Y+internal_domain_margin)
             # Using similar triangles:
             collision_x = head_length * (h + internal_domain_margin)
             collision_x /= h + H / 2.0
@@ -177,30 +174,26 @@ def draw_arrow(
             # m = -float(h + H/2)/(head_length) #slope of right line
             # x_margin_offset = (internal_domain_margin*sqrt(1+m*m))/m
             # x_margin_offset = -(x_margin_offset)
-            x_margin_offset = internal_domain_margin / sin(
-                pi - atan2(h + H / 2.0, -head_length)
+            x_margin_offset = round(
+                internal_domain_margin / sin(pi - atan2(h + H / 2.0, -head_length))
             )
 
+            # no collision -> nice, blocky domains
             if (dX + dL) < head_start + collision_x - x_margin_offset:
-                arrow += '{}\t\t\t<rect class="{}" x="{}" '.format(
-                    additional_tabs, dacc, str(X + dX)
+                svg_str += (
+                    f'{additional_tabs}\t\t<rect class="{dacc}" '
+                    f'x="{X + dX}" y="{Y + internal_domain_margin}" '
+                    f'stroke-linejoin="round" width="{dL}" height="{dH}" '
+                    f'fill="rgb({fill_str})" stroke="rgb({stroke_str})" '
+                    f'stroke-width="{domain_contour_thickness}" opacity="0.75" />\n'
                 )
-                arrow += 'y="{}" stroke-linejoin="round" '.format(
-                    str(Y + internal_domain_margin)
-                )
-                arrow += 'width="{}" height="{}" '.format(str(dL), str(dH))
-                arrow += 'fill="rgb({})" stroke="rgb({})" '.format(
-                    ",".join([str(val) for val in dcolor]),
-                    ",".join([str(val) for val in dccolor]),
-                )
-                arrow += 'stroke-width="{}" opacity="0.75" />\n'.format(
-                    str(domain_contour_thickness)
-                )
+            # collision -> draw a polygon
             else:
-                del points[:]
+                points = []
 
+                # handle the left part of domain (tail)
                 if dX < head_start + collision_x - x_margin_offset:
-                    # add points A and B
+                    # arrow with tail: add points A and B
                     points.append([X + dX, Y + internal_domain_margin])
                     points.append(
                         [
@@ -208,33 +201,28 @@ def draw_arrow(
                             Y + internal_domain_margin,
                         ]
                     )
-
                 else:
-                    # add point A'
-                    start_y_offset = (h + H / 2) * (L - x_margin_offset - dX)
-                    start_y_offset /= head_length
-                    start_y_offset = int(start_y_offset)
+                    # arrow without tail: add point A'
+                    start_y_offset = int(
+                        (h + H / 2) * (L - x_margin_offset - dX) / head_length
+                    )
                     points.append([X + dX, int(Y + H / 2 - start_y_offset)])
 
-                # handle the rightmost part of the domain
-                if (
-                    dX + dL >= head_end - x_margin_offset
-                ):  # could happen more easily with the scaling
-                    points.append(
-                        [X + head_end - x_margin_offset, int(Y + H / 2)]
-                    )  # right part is a triangle
+                # handle the right part of domain (arrow head)
+                if dX + dL >= head_end - x_margin_offset:  # could happen with scaling
+                    # right part is a triangle
+                    points.append([X + head_end - x_margin_offset, int(Y + H / 2)])
                 else:
-                    # add points C and D
+                    # right part is a cut triangle
                     end_y_offset = (2 * h + H) * (L - x_margin_offset - dX - dL)
                     end_y_offset /= 2 * head_length
                     end_y_offset = int(end_y_offset)
-
                     points.append([X + dX + dL, int(Y + H / 2 - end_y_offset)])
                     points.append([X + dX + dL, int(Y + H / 2 + end_y_offset)])
 
                 # handle lower part
                 if dX < head_start + collision_x - x_margin_offset:
-                    # add points E and F
+                    # arrow with tail: add points E and F
                     points.append(
                         [
                             X + head_start + collision_x - x_margin_offset,
@@ -243,32 +231,23 @@ def draw_arrow(
                     )
                     points.append([X + dX, Y + H - internal_domain_margin])
                 else:
-                    # add point F'
+                    # # arrow without tail: add point F'
                     points.append([X + dX, int(Y + H / 2 + start_y_offset)])
 
-                del points_coords[:]
-                for point in points:
-                    points_coords.append(str(int(point[0])) + "," + str(int(point[1])))
-
-                arrow += '{}\t\t\t<polygon class="{}" '.format(additional_tabs, dacc)
-                arrow += 'points="{}" stroke-linejoin="round" '.format(
-                    " ".join(points_coords)
-                )
-                arrow += 'width="{}" height="{}" '.format(str(dL), str(dH))
-                arrow += 'fill="rgb({})" '.format(
-                    ",".join([str(val) for val in dcolor])
-                )
-                arrow += 'stroke="rgb({})" '.format(
-                    ",".join([str(val) for val in dccolor])
-                )
-                arrow += 'stroke-width="{}" opacity="0.75" />\n'.format(
-                    str(domain_contour_thickness)
+                points_str = " ".join(f"{point[0]},{point[1]}" for point in points)
+                svg_str += (
+                    f'{additional_tabs}\t\t<polygon class="{dacc}" '
+                    f'points="{points_str}" stroke-linejoin="round" '
+                    f'width="{dL}" height="{dH}" '
+                    f'fill="rgb({fill_str})" '
+                    f'stroke="rgb({stroke_str})" '
+                    f'stroke-width="{domain_contour_thickness}" opacity="0.75" />\n'
                 )
 
-        # now check other direction
+        # now check other direction (strand == "-")
         else:
-            # calculate how far from head_start we (the horizontal guide at y=Y+internal_domain_margin)
-            #  would crash with the slope
+            # calculate how far from head_start we would crash with the slope
+            # (the horizontal guide at y=Y+internal_domain_margin)
             # Using similar triangles:
             collision_x = head_length * ((H / 2) - internal_domain_margin)
             collision_x /= h + H / 2.0
@@ -278,38 +257,33 @@ def draw_arrow(
                 internal_domain_margin / sin(atan2(h + H / 2.0, head_length))
             )
 
-            # nice, blocky domains
+            # no collision -> nice, blocky domains
             if dX > collision_x + x_margin_offset:
-                arrow += '{}\t\t\t<rect class="{}" '.format(additional_tabs, dacc)
-                arrow += 'x="{}" y="{}" '.format(
-                    str(X + dX), str(Y + internal_domain_margin)
-                )
-                arrow += 'stroke-linejoin="round" width="{}" height="{}" '.format(
-                    str(dL), str(dH)
-                )
-                arrow += 'fill="rgb({})" '.format(
-                    ",".join([str(val) for val in dcolor])
-                )
-                arrow += 'stroke="rgb({})" '.format(
-                    ",".join([str(val) for val in dccolor])
-                )
-                arrow += 'stroke-width="{}" opacity="0.75" />\n'.format(
-                    str(domain_contour_thickness)
+                svg_str += (
+                    f'{additional_tabs}\t\t<rect class="{dacc}" '
+                    f'x="{X + dX}" y="{Y + internal_domain_margin}" '
+                    f'stroke-linejoin="round" width="{dL}" height="{dH}" '
+                    f'fill="rgb({fill_str})" stroke="rgb({stroke_str})" '
+                    f'stroke-width="{domain_contour_thickness}" opacity="0.75" />\n'
                 )
             else:
-                del points[:]
+                points = []
 
-                # handle lefthand side. Regular point or pointy start?
-                if dX >= x_margin_offset:
+                # handle left part of domain (head)
+                if dX < x_margin_offset:
+                    # regular triangle
+                    points.append([X + x_margin_offset, Y + H / 2])
+                else:
+                    # cut triangle
                     start_y_offset = round(
                         (h + H / 2) * (dX - x_margin_offset) / head_length
                     )
+                    points.append([X + dX, Y + H / 2 + start_y_offset])
                     points.append([X + dX, Y + H / 2 - start_y_offset])
-                else:
-                    points.append([X + x_margin_offset, Y + H / 2])
 
                 # handle middle/end
                 if dX + dL < collision_x + x_margin_offset:
+                    # no tail
                     if head_length != 0:
                         end_y_offset = round(
                             (h + H / 2) * (dX + dL - x_margin_offset) / head_length
@@ -319,6 +293,7 @@ def draw_arrow(
                     points.append([X + dX + dL, Y + H / 2 - end_y_offset])
                     points.append([X + dX + dL, Y + H / 2 + end_y_offset])
                 else:
+                    # tail
                     points.append(
                         [X + collision_x + x_margin_offset, Y + internal_domain_margin]
                     )
@@ -331,34 +306,26 @@ def draw_arrow(
                         ]
                     )
 
-                # last point, if it's not a pointy domain
-                if dX >= x_margin_offset:
-                    points.append([X + dX, Y + H / 2 + start_y_offset])
+                # # last point, if it's not a pointy domain
+                # if dX >= x_margin_offset:
+                #     points.append([X + dX, Y + H / 2 + start_y_offset])
 
-                del points_coords[:]
-                for point in points:
-                    points_coords.append(str(int(point[0])) + "," + str(int(point[1])))
-
-                arrow += '{}\t\t\t<polygon class="{}" '.format(additional_tabs, dacc)
-                arrow += 'points="{}" stroke-linejoin="round" '.format(
-                    " ".join(points_coords)
+                points_str = " ".join(f"{point[0]},{point[1]}" for point in points)
+                svg_str += (
+                    f'{additional_tabs}\t\t<polygon class="{dacc}" '
+                    f'points="{points_str}" stroke-linejoin="round" '
+                    f'width="{dL}" height="{dH}" '
+                    f'fill="rgb({fill_str})" '
+                    f'stroke="rgb({stroke_str})" '
+                    f'stroke-width="{domain_contour_thickness}" opacity="0.75" />\n'
                 )
-                arrow += 'width="{}" height="{}" '.format(str(dL), str(dH))
-                arrow += 'fill="rgb({})" '.format(
-                    ",".join([str(val) for val in dcolor])
-                )
-                arrow += 'stroke="rgb({})" '.format(
-                    ",".join([str(val) for val in dccolor])
-                )
-                arrow += 'stroke-width="{}" opacity="0.75" />\n'.format(
-                    str(domain_contour_thickness)
-                )
+        # end of domain
+        svg_str += f"{additional_tabs}\t</g>\n"
 
-        arrow += additional_tabs + "\t\t</g>\n"
+    # end of gene arrow
+    svg_str += f"{additional_tabs}</g>\n"
 
-    arrow += additional_tabs + "\t</g>\n"
-
-    return arrow
+    return svg_str
 
 
 def draw_line(X, Y, L):
@@ -402,7 +369,6 @@ def draw_bgc(
     mX=10,
     mY=10,
     scaling=30,
-    html=True,
 ):
     """
     Draw the BGC or the detected motif in SVG format.
@@ -430,12 +396,9 @@ def draw_bgc(
 
     add_tabs = "\t"
 
-    # --- draw the BGC
-    svg_text += f"{add_tabs}<g>\n"
-
     # draw a line that corresponds to cluster size
     line = draw_line(mX, mY + h + H / 2, len(seq_record) / scaling)
-    svg_text += f"{add_tabs}\t{line}"
+    svg_text += f"{add_tabs}{line}"
 
     # Draw arrows for each CDS feature
     color_contour = (0, 0, 0)
@@ -450,9 +413,7 @@ def draw_bgc(
 
         # Get the identifier for the domain hits
         identifier = f"{bgc_id}_{cds_num}"
-        domain_list = domain_hits[
-            identifier
-        ]  # X, Y, L, l, H, h, strand, color, color_contour, category, gid, domain_list
+        domain_list = domain_hits[identifier]
 
         if motif_hit:
             # Skip cds if not part of the detected motif
@@ -488,7 +449,7 @@ def draw_bgc(
         arrow_end = int(feature.location.end) / scaling
         arrow_length = arrow_end - arrow_start
 
-        arrow = draw_arrow(
+        arrow = draw_gene_arrow(
             additional_tabs=add_tabs,
             X=arrow_start + mX,
             Y=mY + h,
@@ -499,22 +460,16 @@ def draw_bgc(
             strand=strand,
             color=color_fill,
             color_contour=color_contour,
-            category="",
             gid=cds_tag,
             domain_list=domain_list,
-            only_color_genes=False,
         )
         if arrow == "":
             print(f"  (ArrowerSVG) Warning: something went wrong with {bgc_id}")
 
         svg_text += arrow
 
-    svg_text += f"{add_tabs}</g>\n"
-
     # Close the SVG tag
-    svg_text += f"{add_tabs[:-2]}</svg>\n"
-    if html:
-        svg_text += "\t\t</div>\n"
+    svg_text += "</svg>\n"
 
     return svg_text
 
