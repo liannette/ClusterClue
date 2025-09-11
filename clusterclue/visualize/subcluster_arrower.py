@@ -41,7 +41,7 @@ from clusterclue.visualize.utils import (
 )
 
 
-def _get_arrow_coordinates(X, Y, L, l, H, h, strand):
+def _get_gene_coordinates(X, Y, L, l, H, h, strand):
     if strand == "+":
         head_end = L
         if L < l:
@@ -89,8 +89,149 @@ def _get_arrow_coordinates(X, Y, L, l, H, h, strand):
     return points, head_start, head_end, head_length
 
 
+def _get_domain_coordinates(
+    dX, dL, dH, X, Y, L, H, h, strand, head_start, head_end, head_length
+):
+    points = []
+    if strand == "+":
+        # calculate how far from head_start we would crash with the slope
+        # (the horizontal guide at y=Y+internal_domain_margin)
+        # Using similar triangles:
+        collision_x = head_length * (h + internal_domain_margin)
+        collision_x /= h + H / 2.0
+        collision_x = round(collision_x)
+
+        # either option for x_margin_offset work
+        # m = -float(h + H/2)/(head_length) #slope of right line
+        # x_margin_offset = (internal_domain_margin*sqrt(1+m*m))/m
+        # x_margin_offset = -(x_margin_offset)
+        x_margin_offset = round(
+            internal_domain_margin / sin(pi - atan2(h + H / 2.0, -head_length))
+        )
+
+        # no collision -> nice, blocky domains
+        if (dX + dL) < head_start + collision_x - x_margin_offset:
+            points.extend(
+                [
+                    [X + dX, Y + internal_domain_margin],
+                    [X + dX + dL, Y + internal_domain_margin],
+                    [X + dX + dL, Y + internal_domain_margin + dH],
+                    [X + dX, Y + internal_domain_margin + dH],
+                ]
+            )
+        # collision -> draw a polygon
+        else:
+            points = []
+
+            # handle the left part of domain (tail)
+            if dX < head_start + collision_x - x_margin_offset:
+                # arrow with tail: add points A and B
+                points.append([X + dX, Y + internal_domain_margin])
+                points.append(
+                    [
+                        X + head_start + collision_x - x_margin_offset,
+                        Y + internal_domain_margin,
+                    ]
+                )
+            else:
+                # arrow without tail: add point A'
+                start_y_offset = int(
+                    (h + H / 2) * (L - x_margin_offset - dX) / head_length
+                )
+                points.append([X + dX, int(Y + H / 2 - start_y_offset)])
+
+            # handle the right part of domain (arrow head)
+            if dX + dL >= head_end - x_margin_offset:  # could happen with scaling
+                # right part is a triangle
+                points.append([X + head_end - x_margin_offset, int(Y + H / 2)])
+            else:
+                # right part is a cut triangle
+                end_y_offset = (2 * h + H) * (L - x_margin_offset - dX - dL)
+                end_y_offset /= 2 * head_length
+                end_y_offset = int(end_y_offset)
+                points.append([X + dX + dL, int(Y + H / 2 - end_y_offset)])
+                points.append([X + dX + dL, int(Y + H / 2 + end_y_offset)])
+
+            # handle lower part
+            if dX < head_start + collision_x - x_margin_offset:
+                # arrow with tail: add points E and F
+                points.append(
+                    [
+                        X + head_start + collision_x - x_margin_offset,
+                        Y + H - internal_domain_margin,
+                    ]
+                )
+                points.append([X + dX, Y + H - internal_domain_margin])
+            else:
+                # # arrow without tail: add point F'
+                points.append([X + dX, int(Y + H / 2 + start_y_offset)])
+
+    # now check other direction (strand == "-")
+    elif strand == "-":
+        # calculate how far from head_start we would crash with the slope
+        # (the horizontal guide at y=Y+internal_domain_margin)
+        # Using similar triangles:
+        collision_x = head_length * ((H / 2) - internal_domain_margin)
+        collision_x /= h + H / 2.0
+        collision_x = round(collision_x)
+
+        x_margin_offset = round(
+            internal_domain_margin / sin(atan2(h + H / 2.0, head_length))
+        )
+
+        # no collision -> nice, blocky domains
+        if dX > collision_x + x_margin_offset:
+            points.extend(
+                [
+                    [X + dX, Y + internal_domain_margin],
+                    [X + dX + dL, Y + internal_domain_margin],
+                    [X + dX + dL, Y + internal_domain_margin + dH],
+                    [X + dX, Y + internal_domain_margin + dH],
+                ]
+            )
+        # collision -> draw a polygon
+        else:
+            # handle left part of domain (head)
+            if dX < x_margin_offset:
+                # regular triangle
+                points.append([X + x_margin_offset, Y + H / 2])
+            else:
+                # cut triangle
+                start_y_offset = round(
+                    (h + H / 2) * (dX - x_margin_offset) / head_length
+                )
+                points.append([X + dX, Y + H / 2 + start_y_offset])
+                points.append([X + dX, Y + H / 2 - start_y_offset])
+
+            # handle middle/end
+            if dX + dL < collision_x + x_margin_offset:
+                # no tail
+                if head_length != 0:
+                    end_y_offset = round(
+                        (h + H / 2) * (dX + dL - x_margin_offset) / head_length
+                    )
+                else:
+                    end_y_offset = 0
+                points.append([X + dX + dL, Y + H / 2 - end_y_offset])
+                points.append([X + dX + dL, Y + H / 2 + end_y_offset])
+            else:
+                # tail
+                points.append(
+                    [X + collision_x + x_margin_offset, Y + internal_domain_margin]
+                )
+                points.append([X + dX + dL, Y + internal_domain_margin])
+                points.append([X + dX + dL, Y + internal_domain_margin + dH])
+                points.append(
+                    [
+                        X + collision_x + x_margin_offset,
+                        Y + internal_domain_margin + dH,
+                    ]
+                )
+    return points
+
+
 # --- Draw arrow for gene
-def draw_gene_arrow(
+def draw_arrow(
     additional_tabs,
     X,
     Y,
@@ -121,7 +262,7 @@ def draw_gene_arrow(
     if strand not in ["+", "-"]:
         return ""
 
-    points, head_start, head_end, head_length = _get_arrow_coordinates(
+    gene_points, head_start, head_end, head_length = _get_gene_coordinates(
         X, Y, L, l, H, h, strand
     )
 
@@ -133,172 +274,56 @@ def draw_gene_arrow(
     svg_str = f"{additional_tabs}<g>\n"
     svg_str += f"{additional_tabs}\t<title>{gid}</title>\n"
 
-    points_str = " ".join(f"{point[0]},{point[1]}" for point in points)
-    fill_str = ",".join([str(val) for val in color])
-    stroke_str = ",".join([str(val) for val in color_contour])
+    gene_points_str = " ".join(f"{point[0]},{point[1]}" for point in gene_points)
+    gene_fill_str = ",".join([str(val) for val in color])
+    gene_stroke_str = ",".join([str(val) for val in color_contour])
     svg_str += (
-        f'{additional_tabs}\t<polygon class="{gid}" points="{points_str}" '
-        f'fill="rgb({fill_str})" fill-opacity="1.0" '
-        f'stroke="rgb({stroke_str})" stroke-width="{gene_contour_thickness}" />\n'
+        f'{additional_tabs}\t<polygon class="{gid}" points="{gene_points_str}" '
+        f'fill="rgb({gene_fill_str})" fill-opacity="1.0" '
+        f'stroke="rgb({gene_stroke_str})" stroke-width="{gene_contour_thickness}" />\n'
     )
 
     # draw domains.
     # Domains on the tip of the arrow should not have corners sticking out of them
     for domain in domain_list:
         # [X, L, H, domain_accession, (domain_name, domain_description), color, color_contour]
-        dX = domain[0]
-        dL = domain[1]
-        dH = domain[2]
-        dacc = domain[3]
-        dname = domain[4][0]
-        ddesc = domain[4][1]
-        dcolor = domain[5]
-        dccolor = domain[6]
+        domain_X = domain[0]
+        domain_L = domain[1]
+        domain_H = domain[2]
+        domain_acc = domain[3]
+        domain_name = domain[4][0]
+        domain_desc = domain[4][1]
+        domain_fill = domain[5]
+        domain_stroke = domain[6]
 
-        if strand == "+":
-            # calculate how far from head_start we would crash with the slope
-            # (the horizontal guide at y=Y+internal_domain_margin)
-            # Using similar triangles:
-            collision_x = head_length * (h + internal_domain_margin)
-            collision_x /= h + H / 2.0
-            collision_x = round(collision_x)
-
-            # either option for x_margin_offset work
-            # m = -float(h + H/2)/(head_length) #slope of right line
-            # x_margin_offset = (internal_domain_margin*sqrt(1+m*m))/m
-            # x_margin_offset = -(x_margin_offset)
-            x_margin_offset = round(
-                internal_domain_margin / sin(pi - atan2(h + H / 2.0, -head_length))
-            )
-
-            # no collision -> nice, blocky domains
-            if (dX + dL) < head_start + collision_x - x_margin_offset:
-                points = [
-                    [X + dX, Y + internal_domain_margin],
-                    [X + dX + dL, Y + internal_domain_margin],
-                    [X + dX + dL, Y + internal_domain_margin + dH],
-                    [X + dX, Y + internal_domain_margin + dH],
-                ]
-            # collision -> draw a polygon
-            else:
-                points = []
-
-                # handle the left part of domain (tail)
-                if dX < head_start + collision_x - x_margin_offset:
-                    # arrow with tail: add points A and B
-                    points.append([X + dX, Y + internal_domain_margin])
-                    points.append(
-                        [
-                            X + head_start + collision_x - x_margin_offset,
-                            Y + internal_domain_margin,
-                        ]
-                    )
-                else:
-                    # arrow without tail: add point A'
-                    start_y_offset = int(
-                        (h + H / 2) * (L - x_margin_offset - dX) / head_length
-                    )
-                    points.append([X + dX, int(Y + H / 2 - start_y_offset)])
-
-                # handle the right part of domain (arrow head)
-                if dX + dL >= head_end - x_margin_offset:  # could happen with scaling
-                    # right part is a triangle
-                    points.append([X + head_end - x_margin_offset, int(Y + H / 2)])
-                else:
-                    # right part is a cut triangle
-                    end_y_offset = (2 * h + H) * (L - x_margin_offset - dX - dL)
-                    end_y_offset /= 2 * head_length
-                    end_y_offset = int(end_y_offset)
-                    points.append([X + dX + dL, int(Y + H / 2 - end_y_offset)])
-                    points.append([X + dX + dL, int(Y + H / 2 + end_y_offset)])
-
-                # handle lower part
-                if dX < head_start + collision_x - x_margin_offset:
-                    # arrow with tail: add points E and F
-                    points.append(
-                        [
-                            X + head_start + collision_x - x_margin_offset,
-                            Y + H - internal_domain_margin,
-                        ]
-                    )
-                    points.append([X + dX, Y + H - internal_domain_margin])
-                else:
-                    # # arrow without tail: add point F'
-                    points.append([X + dX, int(Y + H / 2 + start_y_offset)])
-
-        # now check other direction (strand == "-")
-        else:
-            # calculate how far from head_start we would crash with the slope
-            # (the horizontal guide at y=Y+internal_domain_margin)
-            # Using similar triangles:
-            collision_x = head_length * ((H / 2) - internal_domain_margin)
-            collision_x /= h + H / 2.0
-            collision_x = round(collision_x)
-
-            x_margin_offset = round(
-                internal_domain_margin / sin(atan2(h + H / 2.0, head_length))
-            )
-
-            # no collision -> nice, blocky domains
-            if dX > collision_x + x_margin_offset:
-                points = [
-                    [X + dX, Y + internal_domain_margin],
-                    [X + dX + dL, Y + internal_domain_margin],
-                    [X + dX + dL, Y + internal_domain_margin + dH],
-                    [X + dX, Y + internal_domain_margin + dH],
-                ]
-            # collision -> draw a polygon
-            else:
-                points = []
-
-                # handle left part of domain (head)
-                if dX < x_margin_offset:
-                    # regular triangle
-                    points.append([X + x_margin_offset, Y + H / 2])
-                else:
-                    # cut triangle
-                    start_y_offset = round(
-                        (h + H / 2) * (dX - x_margin_offset) / head_length
-                    )
-                    points.append([X + dX, Y + H / 2 + start_y_offset])
-                    points.append([X + dX, Y + H / 2 - start_y_offset])
-
-                # handle middle/end
-                if dX + dL < collision_x + x_margin_offset:
-                    # no tail
-                    if head_length != 0:
-                        end_y_offset = round(
-                            (h + H / 2) * (dX + dL - x_margin_offset) / head_length
-                        )
-                    else:
-                        end_y_offset = 0
-                    points.append([X + dX + dL, Y + H / 2 - end_y_offset])
-                    points.append([X + dX + dL, Y + H / 2 + end_y_offset])
-                else:
-                    # tail
-                    points.append(
-                        [X + collision_x + x_margin_offset, Y + internal_domain_margin]
-                    )
-                    points.append([X + dX + dL, Y + internal_domain_margin])
-                    points.append([X + dX + dL, Y + internal_domain_margin + dH])
-                    points.append(
-                        [
-                            X + collision_x + x_margin_offset,
-                            Y + internal_domain_margin + dH,
-                        ]
-                    )
-        fill_str = ",".join([str(val) for val in dcolor])
-        stroke_str = ",".join([str(val) for val in dccolor])
-        points_str = " ".join(f"{point[0]},{point[1]}" for point in points)
+        domain_points = _get_domain_coordinates(
+            domain_X,
+            domain_L,
+            domain_H,
+            X,
+            Y,
+            L,
+            H,
+            h,
+            strand,
+            head_start,
+            head_end,
+            head_length,
+        )
+        domain_fill_str = ",".join([str(val) for val in domain_fill])
+        domain_stroke_str = ",".join([str(val) for val in domain_stroke])
+        domain_points_str = " ".join(
+            f"{point[0]},{point[1]}" for point in domain_points
+        )
 
         svg_str += f"{additional_tabs}\t<g>\n"
-        svg_str += f'{additional_tabs}\t\t<title>{dname} ({dacc}) "{ddesc}"</title>\n'
+        svg_str += f'{additional_tabs}\t\t<title>{domain_name} ({domain_acc}) "{domain_desc}"</title>\n'
         svg_str += (
-            f'{additional_tabs}\t\t<polygon class="{dacc}" '
-            f'points="{points_str}" stroke-linejoin="round" '
-            f'width="{dL}" height="{dH}" '
-            f'fill="rgb({fill_str})" '
-            f'stroke="rgb({stroke_str})" '
+            f'{additional_tabs}\t\t<polygon class="{domain_acc}" '
+            f'points="{domain_points_str}" stroke-linejoin="round" '
+            f'width="{domain_L}" height="{domain_H}" '
+            f'fill="rgb({domain_fill_str})" '
+            f'stroke="rgb({domain_stroke_str})" '
             f'stroke-width="{domain_contour_thickness}" opacity="0.75" />\n'
         )
         svg_str += f"{additional_tabs}\t</g>\n"
@@ -430,7 +455,7 @@ def draw_bgc(
         arrow_end = int(feature.location.end) / scaling
         arrow_length = arrow_end - arrow_start
 
-        arrow = draw_gene_arrow(
+        arrow = draw_arrow(
             additional_tabs=add_tabs,
             X=arrow_start + mX,
             Y=mY + h,
