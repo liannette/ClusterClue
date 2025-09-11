@@ -296,8 +296,6 @@ def draw_arrow(
         domain_L = domain[1]
         domain_H = domain[2]
         domain_acc = domain[3]
-        domain_name = domain[4][0]
-        domain_desc = domain[4][1]
         domain_fill = domain[5]
         domain_stroke = domain[6]
 
@@ -322,7 +320,7 @@ def draw_arrow(
         )
 
         svg_str += f"{additional_tabs}\t<g>\n"
-        svg_str += f'{additional_tabs}\t\t<title>{domain_name} ({domain_acc}) "{domain_desc}"</title>\n'
+        svg_str += f'{additional_tabs}\t\t<title>{domain_acc}"</title>\n'
         svg_str += (
             f'{additional_tabs}\t\t<polygon class="{domain_acc}" '
             f'points="{domain_points_str}" stroke-linejoin="round" '
