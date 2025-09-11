@@ -26,6 +26,7 @@ import sys
 from math import atan2, pi, sin
 from pathlib import Path
 from Bio import SeqIO  # type: ignore
+from colorsys import hsv_to_rgb, rgb_to_hsv
 
 from clusterclue.visualize.molecule import read_compounds, draw_compounds
 from clusterclue.visualize.config import (
@@ -38,6 +39,7 @@ from clusterclue.visualize.utils import (
     read_txt,
     read_detected_motifs,
     read_dom_hits,
+    read_color_domains_file,
 )
 
 
@@ -263,6 +265,17 @@ def _get_domain_coordinates(
     return points
 
 
+def _get_domain_stroke_rgb(domain_fill_rgb):
+    # contour color is a bit darker. We go to h,s,v space for that
+    h_, s, v = rgb_to_hsv(
+        float(domain_fill_rgb[0]) / 255.0,
+        float(domain_fill_rgb[1]) / 255.0,
+        float(domain_fill_rgb[2]) / 255.0,
+    )
+    domain_stroke_rgb = tuple(int(c * 255) for c in hsv_to_rgb(h_, s, 0.8 * v))
+    return domain_stroke_rgb
+
+
 # --- Draw arrow for gene
 def draw_arrow(
     additional_tabs,
@@ -277,6 +290,7 @@ def draw_arrow(
     color_contour,
     cds_tag,
     domain_list,
+    domain_colors,
     scaling,
 ):
     """
@@ -316,9 +330,11 @@ def draw_arrow(
 
     domain_height = int(H - 2 * internal_domain_margin)
     for domain in domain_list:
+        domain_accession = domain["accession"]
         domain_start = int(domain["start"] / scaling)
         domain_width = int(domain["width"] / scaling)
-        domain
+        domain_fill_rgb = domain_colors[domain_accession]
+        domain_stroke_rgb = _get_domain_stroke_rgb(domain_fill_rgb)
         domain_points = _get_domain_coordinates(
             domain_start,
             domain_width,
@@ -333,7 +349,6 @@ def draw_arrow(
             arrow_head_end,
             arrow_head_length,
         )
-
         domain_points_str = " ".join(f"{p[0]},{p[1]}" for p in domain_points)
 
         svg_str += f"{additional_tabs}\t<g>\n"
@@ -342,8 +357,8 @@ def draw_arrow(
             f'{additional_tabs}\t\t<polygon class="{domain["accession"]}" '
             f'points="{domain_points_str}" stroke-linejoin="round" '
             f'width="{domain_width}" height="{domain_height}" '
-            f'fill="rgb({",".join([str(val) for val in domain["fill_rgb"]])})" '
-            f'stroke="rgb({",".join([str(val) for val in domain["stroke_rgb"]])})" '
+            f'fill="rgb({",".join([str(val) for val in domain_fill_rgb])})" '
+            f'stroke="rgb({",".join([str(val) for val in domain_stroke_rgb])})" '
             f'stroke-width="{domain_contour_thickness}" opacity="0.75" />\n'
         )
         svg_str += f"{additional_tabs}\t</g>\n"
@@ -407,6 +422,7 @@ def draw_bgc(
     bgc_length,
     cds_features,
     domain_hits,
+    domain_colors,
     motif_hit=None,
     included_domains=None,
     H=30,
@@ -510,6 +526,7 @@ def draw_bgc(
             color_contour=color_contour,
             cds_tag=_create_cds_tag(feature),
             domain_list=domains,
+            domain_colors=domain_colors,
             scaling=scaling,
         )
         if arrow == "":
@@ -537,6 +554,7 @@ def main(
     bgc_gbk_paths = [Path(path) for path in read_txt(filenames)]
 
     dom_hits = read_dom_hits(dom_hits_file, domains_color_file)
+    domain_colors = read_color_domains_file(domains_color_file)
     include_doms = read_txt(include_list) if include_list else None
     detected_motifs = read_detected_motifs(motif_hits) if motif_hits else None
     compounds = read_compounds(compounds_filepath) if compounds_filepath else None
@@ -566,6 +584,7 @@ def main(
                 bgc_length=bgc_length,
                 cds_features=cds_features,
                 domain_hits=dom_hits,
+                domain_colors=domain_colors,
             )
             f.write(svg_text)
 
@@ -578,5 +597,6 @@ def main(
                     domain_hits=dom_hits,
                     motif_hit=motif_hit,
                     included_domains=include_doms,
+                    domain_colors=domain_colors,
                 )
                 f.write(svg_text)
