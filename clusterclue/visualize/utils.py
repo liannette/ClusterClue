@@ -1,142 +1,110 @@
 import sys
 import csv
-from collections import defaultdict, OrderedDict
+from collections import defaultdict
 from pathlib import Path
 from typing import List
-from colorsys import hsv_to_rgb, rgb_to_hsv
-from random import uniform
-
-from clusterclue.visualize.config import internal_domain_margin
-
-
-def new_color(gene_or_domain):
-    # see https://en.wikipedia.org/wiki/HSL_and_HSV
-    # and http://stackoverflow.com/a/1586291
-
-    h = uniform(0, 1)  # all possible colors
-
-    if gene_or_domain == "gene":
-        s = uniform(0.15, 0.3)
-        v = uniform(0.98, 1.0)
-    elif gene_or_domain == "domain":
-        s = uniform(0.5, 0.75)  # lower: less saturated
-        v = uniform(0.7, 0.9)  # lower = darker
-    else:
-        sys.exit("unknown kind of color. Should be 'gene' or 'domain'")
-
-    r, g, b = tuple(int(c * 255) for c in hsv_to_rgb(h, s, v))
-
-    return [r, g, b]
 
 
 def read_color_domains_file(domains_color_file):
-    color_domains = OrderedDict()
-    if Path(domains_color_file).is_file():
-        with open(domains_color_file, "r") as color_domains_handle:
-            for line in color_domains_handle:
-                # handle comments and empty lines
-                if line[0] != "#" and line.strip():
-                    row = line.strip().split("\t")
-                    name = row[0]
-                    rgb = row[1].split(",")
-                    color_domains[name] = [int(rgb[x]) for x in range(3)]
-    else:
-        print("Domains colors file was not found. A new file will be created")
-    return color_domains
+    """
+    Reads and parses a color domains file.
+
+    This function reads a tab-delimited file containing domain names and their
+    associated RGB color values. Each line in the file should contain a domain
+    name followed by a comma-separated RGB value.
+
+    Args:
+        domains_color_file (str): Path to the domains color file.
+
+    Returns:
+        dict: A dictionary mapping domain accessions (str) to RGB color values (list of 3 integers).
+
+    Raises:
+        SystemExit: If the specified file does not exist.
+
+    Example format of domains_color_file:
+        Domain1    255,0,0
+        Domain2    0,255,0
+        Domain3    0,0,255
+    """
+    if not Path(domains_color_file).is_file():
+        sys.exit(f"Error: Domains colors file was not found: {domains_color_file}")
+
+    domain_colors = dict()
+    with open(domains_color_file, "r") as f:
+        reader = csv.reader(f, delimiter="\t")
+        for row in reader:
+            domain_accession = row[0]
+            rgb = [int(val) for val in row[1].split(",")]
+            domain_colors[domain_accession] = rgb
+    return domain_colors
 
 
-def read_dom_hits(dom_hits_file, domains_color_file, scaling=30, H=30):
-    """Returns dict of {gene_identifier:[[domain_info]]}"""
+def read_dom_hits(dom_hits_file):
+    """
+    Reads and parses a domain hits file.
 
-    color_domains = read_color_domains_file(domains_color_file)
+    This function reads a tab-delimited file containing domain hits information.
+    Each line in the file should contain information about a domain hit.
+
+    Args:
+        dom_hits_file (str): Path to the domain hits file.
+
+    Returns:
+        dict: A dictionary mapping gene identifiers (str) to a list of domain hit dictionaries.
+            Each domain hit dictionary contains:
+                - 'accession' (str): Domain accession.
+                - 'start' (int): Start position of the domain relative to the gene start (in bp) and strand direction.
+                - 'width' (int): Width of the domain (in bp).
+
+    Raises:
+        SystemExit: If the specified file does not exist.
+
+    Example format of dom_hits_file:
+        bgc	        g_id	p_id	    location	orf_num	tot_orf domain	    q_range	bitscore
+        BGC0000001	orfP	AEK75490.1	0;1083;+	1	    29	    PCMT	    23;143	89.4
+        BGC0000001	abyR	AEK75492.1	1886;2633;+	3	    29	    Trans_reg_C	17;87	36.9
+        BGC0000001	abyR	AEK75492.1	1886;2633;+	3	    29	    BTAD	    93;238	126.7
+    """
 
     if not Path(dom_hits_file).is_file():
-        sys.exit("Error (Arrower): " + dom_hits_file + " not found")
+        sys.exit(f"Error: Domain hits file not found: {dom_hits_file}")
 
-    pfam_info = {}
-    new_color_domains = {}
-    identifiers = defaultdict(list)
-    with open(dom_hits_file, "r") as pfd_handle:
-        pfd_handle.readline()  # header
-        for line in pfd_handle:
-            row = line.strip("\n").split("\t")
+    all_domains = defaultdict(list)
+    with open(dom_hits_file, "r") as f:
+        reader = csv.DictReader(f, delimiter="\t")
+        for row in reader:
+            # gene location (in bp)
+            orf_start, orf_end, orf_strand = (
+                row["location"].replace("<", "").replace(">", "").split(";")
+            )
+            orf_start, orf_end = int(orf_start), int(orf_end)
 
-            # use to access to parent's properties
-            # identifier = row[9].replace("<","").replace(">","")
-            # if it's the new version of pfd file, we can take the last part
-            #  to make it equal to the identifiers used in gene_list. Strand
-            #  is recorded in parent gene anyway
-            # if ":strand:+" in identifier:
-            # identifier = identifier.replace(":strand:+", "")
-            # strand = "+"
-            # if ":strand:-" in identifier:
-            # identifier = identifier.replace(":strand:-", "")
-            # strand = "-"
-            # get strand
-            loc = row[3].replace("<", "").replace(">", "")
-            g_start, g_end, strand = loc.split(";")
-
-            # get start and end of pfam
-            pf_start, pf_end = row[-2].split(";")
-            width = 3 * (int(pf_end) - int(pf_start))
-
-            if strand == "+":
-                # multiply by 3 because the env. coordinate is in aminoacids, not in bp
+            # domain location (relative to gene start)
+            # multiply by 3 to convert aa to bp
+            domain_start, domain_end = [
+                3 * int(aa_loc) for aa_loc in row["q_range"].split(";")
+            ]
+            domain_width = domain_end - domain_start
+            # get domain start relative to gene direction (strand)
+            if orf_strand == "+":
                 # This start is relative to the start of the gene
-                start = 3 * int(pf_start)
+                start = domain_start
+            elif orf_strand == "-":
+                start = orf_end - orf_start - domain_start - domain_width
             else:
-                loci_start = int(g_start)
-                loci_end = int(g_end)
+                sys.exit(f"Error: unknown strand {orf_strand}")
 
-                start = loci_end - loci_start - 3 * int(pf_start) - width
-
-            # geometry
-            start = int(start / scaling)
-            width = int(width / scaling)
-
-            # accession -> this is now id
-            domain_acc = row[6]
-
-            # colors
-            try:
-                color = color_domains[domain_acc]
-            except KeyError:
-                color = new_color("domain")
-                new_color_domains[domain_acc] = color
-                color_domains[domain_acc] = color
-                pass
-            # contour color is a bit darker. We go to h,s,v space for that
-            h_, s, v = rgb_to_hsv(
-                float(color[0]) / 255.0,
-                float(color[1]) / 255.0,
-                float(color[2]) / 255.0,
-            )
-            color_contour = tuple(int(c * 255) for c in hsv_to_rgb(h_, s, 0.8 * v))
-
-            # [X, L, H, domain_acc, color, color_contour]
-            identifier = row[0] + "_" + row[4]
-            desc = pfam_info.get(domain_acc, ("", ""))
-            identifiers[identifier].append(
-                [
-                    start,
-                    width,
-                    int(H - 2 * internal_domain_margin),
-                    domain_acc,
-                    desc,
-                    color,
-                    color_contour,
-                ]
+            orf_identifier = f"{row['bgc']}_{row['orf_num']}"
+            all_domains[orf_identifier].append(
+                {
+                    "accession": row["domain"],
+                    "start": start,
+                    "width": domain_width,
+                }
             )
 
-    if new_color_domains:
-        # Save all colors to new file
-        new_domains_color_file = domains_color_file + ".new"
-        with open(new_domains_color_file, "w") as f:
-            for domain_acc, color in color_domains.items():
-                color_string = ",".join(map(str, color))
-                f.write(f"{domain_acc}\t{color_string}\n")
-
-    return identifiers
+    return all_domains
 
 
 def read_txt(infile_path: str) -> List[str]:

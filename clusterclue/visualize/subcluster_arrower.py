@@ -1,188 +1,258 @@
-#! /usr/bin/python
-"""
-######################################################################
-#                                                                    #
-#           PLOT ARROWS FOR GENE CLUSTER GIVEN A GenBank FILE        #
-#                           Peter Cimermancic                        #
-#                               April 2010                           #
-#                heavily modified by Jorge Navarro 2016              #
-#                    modified by Joris Louwen 2019                   #
-#             again heavily modified by Annette Lien 2024            #
-#               for the purpose of plotting sub-clusters             #
-######################################################################
+# Authors: Annette Lien (2025), Joris Louwen (2019), Jorge Navarro (2016), Peter Cimermancic (2010)
 
-Note:
-    -Only handles first locus from given gbk
-    -Currently all domain-combinations from a sub-cluster are visualised,
-        so if a domain-combination from a sub-cluster occurs multiple times
-        in a BGC, all those domain-combinations are visualised in the
-        sub-cluster.
-    -For each BGC, this script loads a given gbk file again for each
-        sub-cluster detected in the BGC. Script will get faster if this is
-        resolved.
-"""
-
-# Makes sure the script can be used with Python 2 as well as Python 3.
-from __future__ import division, print_function
-
-from sys import version_info
-
-if version_info[0] == 2:
-    range = xrange  # type: ignore  # noqa: F821
-
-import argparse
-import os
 import re
 import sys
-from collections import defaultdict
 from math import atan2, pi, sin
-from random import uniform
 from pathlib import Path
-
 from Bio import SeqIO  # type: ignore
+from colorsys import hsv_to_rgb, rgb_to_hsv
 
-from clusterclue.visualize.utils import (
-    read_txt, 
-    read_detected_motifs, 
-    read_dom_hits, 
-    read_color_domains_file
-)
-
-from clusterclue.visualize.molecule import draw_mibig_compounds
-
+from clusterclue.visualize.molecule import read_compounds, draw_compounds
 from clusterclue.visualize.config import (
     internal_domain_margin,
     domain_contour_thickness,
     gene_contour_thickness,
     stripe_thickness,
 )
+from clusterclue.visualize.utils import (
+    read_txt,
+    read_detected_motifs,
+    read_dom_hits,
+    read_color_domains_file,
+)
 
 
+def _get_gene_coordinates(X, Y, L, l, H, h, strand):
+    if strand == "+":
+        if L < l:
+            # squeeze arrow if length shorter than head length
+            A = [X, Y - h]
+            B = [X + L, Y + H / 2]
+            C = [X, Y + H + h]
+            points = [A, B, C]
+        else:
+            A = [X, Y]
+            B = [X + L - l, Y]
+            C = [X + L - l, Y - h]
+            D = [X + L, Y + H / 2]
+            E = [X + L - l, Y + H + h]
+            F = [X + L - l, Y + H]
+            G = [X, Y + H]
+            points = [A, B, C, D, E, F, G]
 
-def get_commands():
-    parser = argparse.ArgumentParser(
-        description="A script to visualise BGCs and \
-        detected subclusters."
-    )
-    parser.add_argument(
-        "-f",
-        "--filenames",
-        help="A file that contains paths to\
-        gbk files of BGCs that will be plot, or one gbk file when --one is\
-        provided",
-        required=True,
-    )
-    parser.add_argument(
-        "-c",
-        "--domains_color_file",
-        help="A tsv file that\
-        contains domain_id\tr,g,b on each line. Must be specified, but can be\
-        an empty file in which domain colors will be added",
-    )
-    parser.add_argument(
-        "-d",
-        "--dom_hits_file",
-        help="A file in which Pfam\
-        domains are linked to genes: bgc\tg_id\tp_id\tlocation\torf_num\t\
-        tot_orf\tdomain\tq_range\tbitscore, location as start;end;strand \
-        qrange as start;end",
-    )
-    parser.add_argument(
-        "-g",
-        "--genes_color_file",
-        help="A tsv file that\
-        contains BGCname_GeneNumber\tr,g,b on each line. Is optional, but when\
-        used domains will not be colored",
-        default=False,
-    )
-    parser.add_argument("-o", "--outfile", help="Outfile filepath")
-    parser.add_argument(
-        "-a",
-        "--validated_subclusters",
-        help="A file containing validated\
-        subclusters",
-        default=False,
-    )
-    parser.add_argument(
-        "-b",
-        "--subclusterscout",
-        help="A file containing the hits of \
-        probabilistic subclusters",
-        default=False,
-    )
-    parser.add_argument(
-        "-l",
-        "--modules_lda",
-        help="A file with matches to\
-        topics originating from the LDA algorithm, optional.",
-        default=False,
-    )
-    parser.add_argument(
-        "-t",
-        "--topic_include",
-        help="If specified, only this\
-        one or more topics will be included in the visualisation",
-        default=False,
-        nargs="+",
-    )
-    parser.add_argument(
-        "-s",
-        "--modules_stat",
-        help="A file with BGCs linked to stat modules and the genes",
-        default=False,
-    )
-    parser.add_argument(
-        "-i",
-        "--include_stat_module",
-        help="If specified, only\
-        this one or more stat_module will be included in the visualisation",
-        default=False,
-        nargs="+",
-    )
-    parser.add_argument(
-        "--one",
-        help="Instead of a file containing locations\
-        of gbk files, there is one gbk supplied with -f gbkfile.gbk",
-        default=False,
-        action="store_true",
-    )
-    parser.add_argument(
-        "--include_stat_family",
-        help="If specified, only\
-        this one or more families will be included in the visualisation",
-        default=False,
-        nargs="+",
-    )
-    parser.add_argument(
-        "--include_stat_clan",
-        help="If specified, only\
-        this one or more families will be included in the visualisation",
-        default=False,
-        nargs="+",
-    )
-    parser.add_argument(
-        "--include_list",
-        dest="include_list",
-        default=False,
-        help="If provided only the domains in this file will be taken into \
-        account in the plotting of subclusters. One line should contain one \
-        Pfam ID (default: False - meaning all Pfams present in domhits file)",
-    )
-    parser.add_argument(
-        "--mibig_json_dir", dest="json_dir", default=False,
-        help="A directory containing JSON files with MIBIG annotations",
-    )
-    parser.add_argument(
-        "-v",
-        "--verbose",
-        dest="verbose",
-        required=False,
-        action="store_true",
-        default=False,
-        help="Prints more detailed information.",
-    )
-    return parser.parse_args()
+    elif strand == "-":
+        if L < l:
+            # squeeze arrow if length shorter than head length
+            A = [X, Y + H / 2]
+            B = [X + L, Y - h]
+            C = [X + L, Y + H + h]
+            points = [A, B, C]
+        else:
+            A = [X + L, Y]
+            B = [X + l, Y]
+            C = [X + l, Y - h]
+            D = [X, Y + H / 2]
+            E = [X + l, Y + H + h]
+            F = [X + l, Y + H]
+            G = [X + L, Y + H]
+            points = [A, B, C, D, E, F, G]
+    return points
 
+
+def _get_arrow_head_location(L, l, strand):
+    if strand == "+":
+        head_end = L
+        # no tail
+        if L < l:
+            head_start = 0
+        # tail
+        else:
+            head_start = L - l  # relative to start of gene, not absolute coords.
+    elif strand == "-":
+        head_start = 0
+        # no tail
+        if L < l:
+            head_end = L
+        # tail
+        else:
+            head_end = l
+
+    return head_start, head_end
+
+
+def _get_domain_coordinates(
+    dX, dL, dH, X, Y, L, H, h, strand, head_start, head_end, head_length
+):
+    """
+    Get coordinates for a domain on a gene arrow.
+
+    Domains on the tip of the arrow should not have corners sticking out
+    (which would happen if we just drew a rectangle).
+
+    Args:
+        dX: domain start relative to gene start
+        dL: domain length
+        dH: domain height
+        X: gene start x coordinate
+        Y: gene start y coordinate
+        L: gene length
+        H: gene height
+        h: gene head edge height
+        strand: gene strand ("+" or "-")
+        head_start: position where arrow head starts (relative to gene start)
+        head_end: position where arrow head ends (relative to gene start)
+        head_length: length of the arrow head
+
+    Returns:
+        points: list of [x,y] coordinates for the domain polygon
+    """
+    points = []
+    if strand == "+":
+        # calculate how far from head_start we would crash with the slope
+        # (the horizontal guide at y=Y+internal_domain_margin)
+        # Using similar triangles:
+        collision_x = head_length * (h + internal_domain_margin)
+        collision_x /= h + H / 2.0
+        collision_x = round(collision_x)
+
+        # either option for x_margin_offset work
+        # m = -float(h + H/2)/(head_length) #slope of right line
+        # x_margin_offset = (internal_domain_margin*sqrt(1+m*m))/m
+        # x_margin_offset = -(x_margin_offset)
+        x_margin_offset = round(
+            internal_domain_margin / sin(pi - atan2(h + H / 2.0, -head_length))
+        )
+
+        # no collision -> nice, blocky domains
+        if (dX + dL) < head_start + collision_x - x_margin_offset:
+            points.extend(
+                [
+                    [X + dX, Y + internal_domain_margin],
+                    [X + dX + dL, Y + internal_domain_margin],
+                    [X + dX + dL, Y + internal_domain_margin + dH],
+                    [X + dX, Y + internal_domain_margin + dH],
+                ]
+            )
+        # collision -> draw a polygon
+        else:
+            points = []
+
+            # handle the left part of domain (tail)
+            if dX < head_start + collision_x - x_margin_offset:
+                # arrow with tail: add points A and B
+                points.append([X + dX, Y + internal_domain_margin])
+                points.append(
+                    [
+                        X + head_start + collision_x - x_margin_offset,
+                        Y + internal_domain_margin,
+                    ]
+                )
+            else:
+                # arrow without tail: add point A'
+                start_y_offset = int(
+                    (h + H / 2) * (L - x_margin_offset - dX) / head_length
+                )
+                points.append([X + dX, int(Y + H / 2 - start_y_offset)])
+
+            # handle the right part of domain (arrow head)
+            if dX + dL >= head_end - x_margin_offset:  # could happen with scaling
+                # right part is a triangle
+                points.append([X + head_end - x_margin_offset, int(Y + H / 2)])
+            else:
+                # right part is a cut triangle
+                end_y_offset = (2 * h + H) * (L - x_margin_offset - dX - dL)
+                end_y_offset /= 2 * head_length
+                end_y_offset = int(end_y_offset)
+                points.append([X + dX + dL, int(Y + H / 2 - end_y_offset)])
+                points.append([X + dX + dL, int(Y + H / 2 + end_y_offset)])
+
+            # handle lower part
+            if dX < head_start + collision_x - x_margin_offset:
+                # arrow with tail: add points E and F
+                points.append(
+                    [
+                        X + head_start + collision_x - x_margin_offset,
+                        Y + H - internal_domain_margin,
+                    ]
+                )
+                points.append([X + dX, Y + H - internal_domain_margin])
+            else:
+                # # arrow without tail: add point F'
+                points.append([X + dX, int(Y + H / 2 + start_y_offset)])
+
+    # now check other direction (strand == "-")
+    elif strand == "-":
+        # calculate how far from head_start we would crash with the slope
+        # (the horizontal guide at y=Y+internal_domain_margin)
+        # Using similar triangles:
+        collision_x = head_length * ((H / 2) - internal_domain_margin)
+        collision_x /= h + H / 2.0
+        collision_x = round(collision_x)
+
+        x_margin_offset = round(
+            internal_domain_margin / sin(atan2(h + H / 2.0, head_length))
+        )
+
+        # no collision -> nice, blocky domains
+        if dX > collision_x + x_margin_offset:
+            points.extend(
+                [
+                    [X + dX, Y + internal_domain_margin],
+                    [X + dX + dL, Y + internal_domain_margin],
+                    [X + dX + dL, Y + internal_domain_margin + dH],
+                    [X + dX, Y + internal_domain_margin + dH],
+                ]
+            )
+        # collision -> draw a polygon
+        else:
+            # handle left part of domain (head)
+            if dX < x_margin_offset:
+                # regular triangle
+                points.append([X + x_margin_offset, Y + H / 2])
+            else:
+                # cut triangle
+                start_y_offset = round(
+                    (h + H / 2) * (dX - x_margin_offset) / head_length
+                )
+                points.append([X + dX, Y + H / 2 + start_y_offset])
+                points.append([X + dX, Y + H / 2 - start_y_offset])
+
+            # handle middle/end
+            if dX + dL < collision_x + x_margin_offset:
+                # no tail
+                if head_length != 0:
+                    end_y_offset = round(
+                        (h + H / 2) * (dX + dL - x_margin_offset) / head_length
+                    )
+                else:
+                    end_y_offset = 0
+                points.append([X + dX + dL, Y + H / 2 - end_y_offset])
+                points.append([X + dX + dL, Y + H / 2 + end_y_offset])
+            else:
+                # tail
+                points.append(
+                    [X + collision_x + x_margin_offset, Y + internal_domain_margin]
+                )
+                points.append([X + dX + dL, Y + internal_domain_margin])
+                points.append([X + dX + dL, Y + internal_domain_margin + dH])
+                points.append(
+                    [
+                        X + collision_x + x_margin_offset,
+                        Y + internal_domain_margin + dH,
+                    ]
+                )
+    return points
+
+
+def _get_domain_stroke_rgb(domain_fill_rgb):
+    # contour color is a bit darker. We go to h,s,v space for that
+    h_, s, v = rgb_to_hsv(
+        float(domain_fill_rgb[0]) / 255.0,
+        float(domain_fill_rgb[1]) / 255.0,
+        float(domain_fill_rgb[2]) / 255.0,
+    )
+    domain_stroke_rgb = tuple(int(c * 255) for c in hsv_to_rgb(h_, s, 0.8 * v))
+    return domain_stroke_rgb
 
 
 # --- Draw arrow for gene
@@ -197,10 +267,10 @@ def draw_arrow(
     strand,
     color,
     color_contour,
-    category,
-    gid,
+    cds_tag,
     domain_list,
-    only_color_genes,
+    domain_colors,
+    scaling,
 ):
     """
     SVG code for arrow:
@@ -214,330 +284,124 @@ def draw_arrow(
         - strand
     the edges are ABCDEFG starting from (X,Y)
     domain_list: list of elements to draw domains
-    only_color_genes: bool, only color genes
     """
-
-    if strand == "+":
-        head_end = L
-        if L < l:
-            # squeeze arrow if length shorter than head length
-            A = [X, Y - h]
-            B = [X + L, Y + H / 2]
-            C = [X, Y + H + h]
-            head_start = 0
-            points = [A, B, C]
-        else:
-            A = [X, Y]
-            B = [X + L - l, Y]
-            C = [X + L - l, Y - h]
-            D = [X + L, Y + H / 2]
-            E = [X + L - l, Y + H + h]
-            F = [X + L - l, Y + H]
-            G = [X, Y + H]
-            head_start = (
-                L - l
-            )  # relative to the start of the gene, not absolute coords.
-            points = [A, B, C, D, E, F, G]
-
-    elif strand == "-":
-        head_start = 0
-        if L < l:
-            # squeeze arrow if length shorter than head length
-            A = [X, Y + H / 2]
-            B = [X + L, Y - h]
-            C = [X + L, Y + H + h]
-            head_end = L
-            points = [A, B, C]
-        else:
-            A = [X + L, Y]
-            B = [X + l, Y]
-            C = [X + l, Y - h]
-            D = [X, Y + H / 2]
-            E = [X + l, Y + H + h]
-            F = [X + l, Y + H]
-            G = [X + L, Y + H]
-            head_end = l
-            points = [A, B, C, D, E, F, G]
-
-    else:
+    if strand not in ["+", "-"]:
         return ""
 
-    head_length = head_end - head_start
-    if head_length == 0:
+    arrow_head_start, arrow_head_end = _get_arrow_head_location(L, l, strand)
+    arrow_head_length = arrow_head_end - arrow_head_start
+
+    if arrow_head_length == 0:
         return ""
 
-    points_coords = []
-    for point in points:
-        points_coords.append(str(int(point[0])) + "," + str(int(point[1])))
+    svg_str = f"{additional_tabs}<g>\n"
 
-    arrow = additional_tabs + "\t<g>\n"
+    gene_points = _get_gene_coordinates(X, Y, L, l, H, h, strand)
 
-    # unidentified genes don't have a title and have a darker contour
-    if gid != "NoName":
-        arrow += additional_tabs + "\t\t<title>" + gid + "</title>\n"
-    else:
-        color_contour = [50, 50, 50]
-
-    arrow += '{}\t\t<polygon class="{}" '.format(additional_tabs, gid)
-    arrow += 'points="{}" fill="rgb({})" '.format(
-        " ".join(points_coords), ",".join([str(val) for val in color])
+    svg_str += f"{additional_tabs}\t<title>{cds_tag}</title>\n"
+    svg_str += (
+        f'{additional_tabs}\t<polygon class="{cds_tag}" '
+        f'points="{" ".join(f"{point[0]},{point[1]}" for point in gene_points)}" '
+        f'fill="rgb({",".join([str(val) for val in color])})" fill-opacity="1.0" '
+        f'stroke="rgb({",".join([str(val) for val in color_contour])})" '
+        f'stroke-width="{gene_contour_thickness}" />\n'
     )
-    arrow += 'fill-opacity="1.0" stroke="rgb({})" '.format(
-        ",".join([str(val) for val in color_contour])
-    )
-    arrow += 'stroke-width="{}" {} />\n'.format(str(gene_contour_thickness), category)
 
-    # paint domains. Domains on the tip of the arrow should not have corners sticking
-    #  out of them
-    if only_color_genes:
-        domain_list = []
+    domain_height = int(H - 2 * internal_domain_margin)
     for domain in domain_list:
-        # [X, L, H, domain_accession, (domain_name, domain_description), color, color_contour]
-        dX = domain[0]
-        dL = domain[1]
-        dH = domain[2]
-        dacc = domain[3]
-        dname = domain[4][0]
-        ddesc = domain[4][1]
-        dcolor = domain[5]
-        dccolor = domain[6]
-
-        arrow += additional_tabs + "\t\t<g>\n"
-        arrow += '{}\t\t\t<title>{} ({})\n"{}"</title>\n'.format(
-            additional_tabs, dname, dacc, ddesc
+        domain_accession = domain["accession"]
+        domain_start = int(domain["start"] / scaling)
+        domain_width = int(domain["width"] / scaling)
+        domain_fill_rgb = domain_colors[domain_accession]
+        domain_stroke_rgb = _get_domain_stroke_rgb(domain_fill_rgb)
+        domain_points = _get_domain_coordinates(
+            domain_start,
+            domain_width,
+            domain_height,
+            X,
+            Y,
+            L,
+            H,
+            h,
+            strand,
+            arrow_head_start,
+            arrow_head_end,
+            arrow_head_length,
         )
+        domain_points_str = " ".join(f"{p[0]},{p[1]}" for p in domain_points)
 
-        if strand == "+":
-            # calculate how far from head_start we (the horizontal guide at y=Y+internal_domain_margin)
-            #  would crash with the slope
-            # Using similar triangles:
-            collision_x = head_length * (h + internal_domain_margin)
-            collision_x /= h + H / 2.0
-            collision_x = round(collision_x)
+        svg_str += f"{additional_tabs}\t<g>\n"
+        svg_str += f'{additional_tabs}\t\t<title>{domain["accession"]}"</title>\n'
+        svg_str += (
+            f'{additional_tabs}\t\t<polygon class="{domain["accession"]}" '
+            f'points="{domain_points_str}" stroke-linejoin="round" '
+            f'width="{domain_width}" height="{domain_height}" '
+            f'fill="rgb({",".join([str(val) for val in domain_fill_rgb])})" '
+            f'stroke="rgb({",".join([str(val) for val in domain_stroke_rgb])})" '
+            f'stroke-width="{domain_contour_thickness}" opacity="0.75" />\n'
+        )
+        svg_str += f"{additional_tabs}\t</g>\n"
 
-            # either option for x_margin_offset work
-            # m = -float(h + H/2)/(head_length) #slope of right line
-            # x_margin_offset = (internal_domain_margin*sqrt(1+m*m))/m
-            # x_margin_offset = -(x_margin_offset)
-            x_margin_offset = internal_domain_margin / sin(
-                pi - atan2(h + H / 2.0, -head_length)
-            )
+    # end of gene arrow
+    svg_str += f"{additional_tabs}</g>\n"
 
-            if (dX + dL) < head_start + collision_x - x_margin_offset:
-                arrow += '{}\t\t\t<rect class="{}" x="{}" '.format(
-                    additional_tabs, dacc, str(X + dX)
-                )
-                arrow += 'y="{}" stroke-linejoin="round" '.format(
-                    str(Y + internal_domain_margin)
-                )
-                arrow += 'width="{}" height="{}" '.format(str(dL), str(dH))
-                arrow += 'fill="rgb({})" stroke="rgb({})" '.format(
-                    ",".join([str(val) for val in dcolor]),
-                    ",".join([str(val) for val in dccolor]),
-                )
-                arrow += 'stroke-width="{}" opacity="0.75" />\n'.format(
-                    str(domain_contour_thickness)
-                )
-            else:
-                del points[:]
-
-                if dX < head_start + collision_x - x_margin_offset:
-                    # add points A and B
-                    points.append([X + dX, Y + internal_domain_margin])
-                    points.append(
-                        [
-                            X + head_start + collision_x - x_margin_offset,
-                            Y + internal_domain_margin,
-                        ]
-                    )
-
-                else:
-                    # add point A'
-                    start_y_offset = (h + H / 2) * (L - x_margin_offset - dX)
-                    start_y_offset /= head_length
-                    start_y_offset = int(start_y_offset)
-                    points.append([X + dX, int(Y + H / 2 - start_y_offset)])
-
-                # handle the rightmost part of the domain
-                if (
-                    dX + dL >= head_end - x_margin_offset
-                ):  # could happen more easily with the scaling
-                    points.append(
-                        [X + head_end - x_margin_offset, int(Y + H / 2)]
-                    )  # right part is a triangle
-                else:
-                    # add points C and D
-                    end_y_offset = (2 * h + H) * (L - x_margin_offset - dX - dL)
-                    end_y_offset /= 2 * head_length
-                    end_y_offset = int(end_y_offset)
-
-                    points.append([X + dX + dL, int(Y + H / 2 - end_y_offset)])
-                    points.append([X + dX + dL, int(Y + H / 2 + end_y_offset)])
-
-                # handle lower part
-                if dX < head_start + collision_x - x_margin_offset:
-                    # add points E and F
-                    points.append(
-                        [
-                            X + head_start + collision_x - x_margin_offset,
-                            Y + H - internal_domain_margin,
-                        ]
-                    )
-                    points.append([X + dX, Y + H - internal_domain_margin])
-                else:
-                    # add point F'
-                    points.append([X + dX, int(Y + H / 2 + start_y_offset)])
-
-                del points_coords[:]
-                for point in points:
-                    points_coords.append(str(int(point[0])) + "," + str(int(point[1])))
-
-                arrow += '{}\t\t\t<polygon class="{}" '.format(additional_tabs, dacc)
-                arrow += 'points="{}" stroke-linejoin="round" '.format(
-                    " ".join(points_coords)
-                )
-                arrow += 'width="{}" height="{}" '.format(str(dL), str(dH))
-                arrow += 'fill="rgb({})" '.format(
-                    ",".join([str(val) for val in dcolor])
-                )
-                arrow += 'stroke="rgb({})" '.format(
-                    ",".join([str(val) for val in dccolor])
-                )
-                arrow += 'stroke-width="{}" opacity="0.75" />\n'.format(
-                    str(domain_contour_thickness)
-                )
-
-        # now check other direction
-        else:
-            # calculate how far from head_start we (the horizontal guide at y=Y+internal_domain_margin)
-            #  would crash with the slope
-            # Using similar triangles:
-            collision_x = head_length * ((H / 2) - internal_domain_margin)
-            collision_x /= h + H / 2.0
-            collision_x = round(collision_x)
-
-            x_margin_offset = round(
-                internal_domain_margin / sin(atan2(h + H / 2.0, head_length))
-            )
-
-            # nice, blocky domains
-            if dX > collision_x + x_margin_offset:
-                arrow += '{}\t\t\t<rect class="{}" '.format(additional_tabs, dacc)
-                arrow += 'x="{}" y="{}" '.format(
-                    str(X + dX), str(Y + internal_domain_margin)
-                )
-                arrow += 'stroke-linejoin="round" width="{}" height="{}" '.format(
-                    str(dL), str(dH)
-                )
-                arrow += 'fill="rgb({})" '.format(
-                    ",".join([str(val) for val in dcolor])
-                )
-                arrow += 'stroke="rgb({})" '.format(
-                    ",".join([str(val) for val in dccolor])
-                )
-                arrow += 'stroke-width="{}" opacity="0.75" />\n'.format(
-                    str(domain_contour_thickness)
-                )
-            else:
-                del points[:]
-
-                # handle lefthand side. Regular point or pointy start?
-                if dX >= x_margin_offset:
-                    start_y_offset = round(
-                        (h + H / 2) * (dX - x_margin_offset) / head_length
-                    )
-                    points.append([X + dX, Y + H / 2 - start_y_offset])
-                else:
-                    points.append([X + x_margin_offset, Y + H / 2])
-
-                # handle middle/end
-                if dX + dL < collision_x + x_margin_offset:
-                    if head_length != 0:
-                        end_y_offset = round(
-                            (h + H / 2) * (dX + dL - x_margin_offset) / head_length
-                        )
-                    else:
-                        end_y_offset = 0
-                    points.append([X + dX + dL, Y + H / 2 - end_y_offset])
-                    points.append([X + dX + dL, Y + H / 2 + end_y_offset])
-                else:
-                    points.append(
-                        [X + collision_x + x_margin_offset, Y + internal_domain_margin]
-                    )
-                    points.append([X + dX + dL, Y + internal_domain_margin])
-                    points.append([X + dX + dL, Y + internal_domain_margin + dH])
-                    points.append(
-                        [
-                            X + collision_x + x_margin_offset,
-                            Y + internal_domain_margin + dH,
-                        ]
-                    )
-
-                # last point, if it's not a pointy domain
-                if dX >= x_margin_offset:
-                    points.append([X + dX, Y + H / 2 + start_y_offset])
-
-                del points_coords[:]
-                for point in points:
-                    points_coords.append(str(int(point[0])) + "," + str(int(point[1])))
-
-                arrow += '{}\t\t\t<polygon class="{}" '.format(additional_tabs, dacc)
-                arrow += 'points="{}" stroke-linejoin="round" '.format(
-                    " ".join(points_coords)
-                )
-                arrow += 'width="{}" height="{}" '.format(str(dL), str(dH))
-                arrow += 'fill="rgb({})" '.format(
-                    ",".join([str(val) for val in dcolor])
-                )
-                arrow += 'stroke="rgb({})" '.format(
-                    ",".join([str(val) for val in dccolor])
-                )
-                arrow += 'stroke-width="{}" opacity="0.75" />\n'.format(
-                    str(domain_contour_thickness)
-                )
-
-        arrow += additional_tabs + "\t\t</g>\n"
-
-    arrow += additional_tabs + "\t</g>\n"
-
-    return arrow
+    return svg_str
 
 
 def draw_line(X, Y, L):
     """
     Draw a line below genes
     """
-
-    line = '<line x1="{}" y1="{}" x2="{}" y2="{}" style="stroke:rgb(70,70,70); stroke-width:{} "/>\n'.format(
-        str(X), str(Y), str(X + L), str(Y), str(stripe_thickness)
+    return (
+        f'<line x1="{X}" y1="{Y}" x2="{X + L}" y2="{Y}" '
+        f'style="stroke:rgb(70,70,70); stroke-width:{stripe_thickness} "/>\n'
     )
 
-    return line
 
-
-def _get_tokenized_gene(domain_ids, included_domains):
+def _get_tokenized_gene(domains, included_domains):
     """
     Remove domains that were not included in the analysis.
     """
-    filtered_domains = []
-    for domain in domain_ids:
-        # get the domain name without subPfam suffix
+    filtered_acc = []
+    for domain in domains:
+        acc = domain["accession"]
+        # get the domain accession without subPfam suffix
         # e.g. "PF00001_c1" -> "PF00001"
         # e.g. "PF00001" -> "PF00001"
-        match = re.search(r"_c\d+$", domain)
+        match = re.search(r"_c\d+$", acc)
         if match:
-            domain_clean = domain[:match.start()]
+            acc_clean = acc[: match.start()]
         else:
-            domain_clean = domain
+            acc_clean = acc
         # check if the domain is in the included domains
-        if domain_clean in included_domains:
-            filtered_domains.append(domain)
-    return ";".join(filtered_domains)
+        if acc_clean in included_domains:
+            filtered_acc.append(acc)
+    return ";".join(filtered_acc)
+
+
+def _create_cds_tag(feature):
+    """
+    Create a tag for CDS feature to be used in SVG title.
+    """
+    cds_tag = []
+    if "gene" in feature.qualifiers:
+        cds_tag.append(f"gene: {feature.qualifiers['gene'][0]}")
+    if "locus_tag" in feature.qualifiers:
+        cds_tag.append(f"locus_tag: {feature.qualifiers['locus_tag'][0]}")
+    if "protein_id" in feature.qualifiers:
+        cds_tag.append(f"protein_id: {feature.qualifiers['protein_id'][0]}")
+    if "product" in feature.qualifiers:
+        cds_tag.append(f"product: {feature.qualifiers['product'][0]}")
+
+    return " | ".join(cds_tag)
 
 
 def draw_bgc(
-    bgc_gbk_path,
+    bgc_id,
+    bgc_length,
+    cds_features,
     domain_hits,
+    domain_colors,
     motif_hit=None,
     included_domains=None,
     H=30,
@@ -546,214 +410,176 @@ def draw_bgc(
     mX=10,
     mY=10,
     scaling=30,
-    html=True,
 ):
     """
-    Draw the BGC or the detected motif in SVG format.
-    """
-    bgc_id = bgc_gbk_path.stem
-    seq_record = list(SeqIO.parse(bgc_gbk_path, "genbank"))[0]
+    Renders a BGC (Biosynthetic Gene Cluster) or detected motif as SVG visualization.
 
-    # -- Create SVG header
+    This function creates an SVG representation of a full biosynthetic gene cluster of
+    a specific motif. It draws gene arrows with domain information and includes
+    relevant annotations from the GenBank file.
+
+    Args:
+        bgc_gbk_path (Path): Path to the BGC GenBank file.
+        domain_hits (dict): Dictionary mapping gene identifiers to their domain hits.
+            Format: {"{bgc_id}_{cds_num}": [domain_info_list]}.
+        motif_hit (dict, optional): Information about a detected motif. If provided, only genes
+            matching the motif will be drawn. Dictionary should contain keys:
+            - motif_id: Identifier for the motif
+            - n_matches: Number of matches found
+            - threshold: Detection threshold
+            - score: Motif score
+            - genes: List of genes belonging to the motif
+        included_domains (list, optional): List of domain names to include in visualization.
+        H (int, optional): Height of gene arrows in SVG units. Defaults to 30.
+        h (int, optional): Height of gene arrow head edge in SVG units. Defaults to 5.
+        l (int, optional): Maximum length of gene arrow head in SVG units. Defaults to 12.
+        mX (int, optional): Horizontal padding in SVG units. Defaults to 10.
+        mY (int, optional): Vertical padding in SVG units. Defaults to 10.
+        scaling (int, optional): Horizontal scaling factor to convert sequence positions to SVG coordinates.
+            Larger values create a more compact visualization. Defaults to 30.
+
+    Returns:
+        str: SVG markup as a string that can be embedded in HTML or saved to a file.
+    """
+    # Create SVG header
+    header = "<div></div>\n"
     if motif_hit:
+        # Smaller font for motif ID
         text = (
             f"Motif: {motif_hit['motif_id']} "
             f"(n: {motif_hit['n_matches']}, threshold: {motif_hit['threshold']}), "
             f"score: {motif_hit['score']}, n_genes: {len(motif_hit['genes'])}"
         )
-        # Smaller font for motif ID (h2)
-        header = (
-            f'<div><h2>{text}</h2></div>\n'
-            f'\t\t<div title="{motif_hit['motif_id']}">\n'
-        )
-    else:
-        # Bigger font for BGC ID (h1)
-        header = (
-            f'<div><h1>{bgc_id}</h1></div>\n'
-            f'\t\t<div title="{bgc_id}">\n'
-        )
-    svg_width = len(seq_record)/scaling + 2 * mX
-    svg_height = 2 * h + H + 2 * mY
-    if html:
-        header += f'\t\t\t<svg width="{svg_width}" height="{svg_height}">\n'
-        add_tabs = "\t\t\t"
-    else:
-        # SVG header for non-HTML output has no title
-        header = (
-            f'<svg version="1.1" baseProfile="full" xmlns="http://www.w3.org/2000/svg" '
-            f'width="{svg_width}" height="{svg_height}">\n'
-        )
-        add_tabs = "\t"
+        header += f"<div><h3>{text}</h3></div>\n"
     svg_text = header
 
+    svg_width = bgc_length / scaling + 2 * mX
+    svg_height = 2 * h + H + 2 * mY
+    svg_text += f'<svg width="{svg_width}" height="{svg_height}">\n'
 
-    # --- draw the BGC
-    svg_text += f'{add_tabs}<g>\n'
+    add_tabs = "\t"
 
     # draw a line that corresponds to cluster size
-    line = draw_line(mX, mY + h + H/2, len(seq_record)/scaling)
-    svg_text += f'{add_tabs}\t{line}'
+    line = draw_line(mX, mY + h + H / 2, bgc_length / scaling)
+    svg_text += f"{add_tabs}{line}"
 
     # Draw arrows for each CDS feature
     color_contour = (0, 0, 0)
     color_fill = (255, 255, 255)
-    cds_num = 0
-    for feature in seq_record.features:
-        # Check if the feature is CDS
-        if feature.type != "CDS":
-            continue
-        
-        cds_num += 1
-
-        # Get the identifier for the domain hits
-        identifier = f"{bgc_id}_{cds_num}"
-        domain_list = domain_hits[identifier] # X, Y, L, l, H, h, strand, color, color_contour, category, gid, domain_list
+    for cds_num, feature in enumerate(cds_features, start=1):
+        # Get the domain hits for this CDS
+        domains = domain_hits[f"{bgc_id}_{cds_num}"]
 
         if motif_hit:
             # Skip cds if not part of the detected motif
-            cds_domains = [info[3] for info in domain_list]
-            tokenized_gene = _get_tokenized_gene(cds_domains, included_domains)
+            tokenized_gene = _get_tokenized_gene(domains, included_domains)
             if tokenized_gene not in motif_hit["genes"]:
                 continue
 
-        # Create a tag for CDS
-        cds_tag = ""
-        if "gene" in feature.qualifiers:
-            cds_tag += feature.qualifiers["gene"][0]
-        if "locus_tag" in feature.qualifiers:
-            locus_tag = feature.qualifiers["locus_tag"][0]
-            cds_tag += f" ({locus_tag})"
-        if "product" in feature.qualifiers:
-            product = feature.qualifiers["product"][0]
-            cds_tag += f"\n{product}"
-
         # Convert numerical strand to string representation
         strand = feature.location.strand
-        strand = "+" if strand == 1 else "-" if strand == -1 else sys.exit(f"Invalid strand: {strand}")
+        strand = (
+            "+"
+            if strand == 1
+            else "-"
+            if strand == -1
+            else sys.exit(f"Invalid strand: {strand}")
+        )
 
         # define arrow's start and end
         # http://biopython.org/DIST/docs/api/Bio.SeqFeature.FeatureLocation-class.html#start
-        arrow_start = int(feature.location.start) / scaling
-        arrow_end = int(feature.location.end) / scaling
-        arrow_length = arrow_end - arrow_start
+        gene_start = int(feature.location.start) / scaling
+        gene_end = int(feature.location.end) / scaling
+        gene_length = gene_end - gene_start
 
         arrow = draw_arrow(
             additional_tabs=add_tabs,
-            X=arrow_start + mX,
+            X=gene_start + mX,
             Y=mY + h,
-            L=arrow_length,
+            L=gene_length,
             l=l,
             H=H,
             h=h,
             strand=strand,
             color=color_fill,
             color_contour=color_contour,
-            category="",
-            gid=cds_tag,
-            domain_list=domain_list,
-            only_color_genes=False,
+            cds_tag=_create_cds_tag(feature),
+            domain_list=domains,
+            domain_colors=domain_colors,
+            scaling=scaling,
         )
         if arrow == "":
             print(f"  (ArrowerSVG) Warning: something went wrong with {bgc_id}")
 
         svg_text += arrow
 
-    svg_text += f"{add_tabs}</g>\n"
-
     # Close the SVG tag
-    svg_text += f"{add_tabs[:-2]}</svg>\n"
-    if html:
-        svg_text += "\t\t</div>\n"
+    svg_text += "</svg>\n"
 
     return svg_text
 
 
 def main(
-    filenames,
-    dom_hits_file,
-    one=False,
-    include_list=None,
-    domains_color_file=None,
-    outfile="output.html",
-    motif_hits=None,
-    json_dir="",
+    outfile,
+    gbks_filepath,
+    dom_hits_filepath,
+    biosyn_domains_filepath,
+    domain_colors_filepath,
+    detected_motifs_filepath=None,
+    compounds_filepath=None,
     verbose=False,
 ):
-    # depreciated variables
-    only_color_genes = False
-    gene_colors = {}
-
     # Read BGC paths
-    if one: 
-        bgc_gbk_paths = [Path(filenames), ] 
-    else:
-        bgc_gbk_paths = [Path(path) for path in read_txt(filenames)]
+    bgc_gbk_paths = [Path(path) for path in read_txt(gbks_filepath)]
 
-    dom_hits = read_dom_hits(dom_hits_file, domains_color_file)
-    include_doms = read_txt(include_list) if include_list else None
-    detected_motifs = read_detected_motifs(motif_hits) if motif_hits else None
-
+    dom_hits = read_dom_hits(dom_hits_filepath)
+    domain_colors = read_color_domains_file(domain_colors_filepath)
+    biosyn_domains = read_txt(biosyn_domains_filepath)
+    detected_motifs = (
+        read_detected_motifs(detected_motifs_filepath)
+        if detected_motifs_filepath
+        else None
+    )
+    compounds = read_compounds(compounds_filepath) if compounds_filepath else None
 
     if verbose:
         print("\nVisualising sub-clusters")
 
     with open(outfile, "w") as f:
         for bgc_path in bgc_gbk_paths:
-            # Draw the molecule structure if MIBiG BGC
-            json_file = Path(json_dir) / f"{bgc_path.stem}.json"
-            if json_file.is_file():
-                svg_text = draw_mibig_compounds(json_file)
+            bgc_id = bgc_path.stem
+
+            # Write header for each BGC
+            f.write(f"<h1>{bgc_id}</h1>\n")
+
+            # Draw the molecule structure if available
+            if compounds:
+                svg_text = draw_compounds(compounds.get(bgc_id, []))
                 f.write(svg_text)
 
-            # Draw the BGC
+            seq_record = list(SeqIO.parse(bgc_path, "genbank"))[0]
+            bgc_length = len(seq_record)
+            cds_features = [f for f in seq_record.features if f.type == "CDS"]
+
+            # Draw the full BGC
             svg_text = draw_bgc(
-                bgc_gbk_path=bgc_path,
+                bgc_id=bgc_id,
+                bgc_length=bgc_length,
+                cds_features=cds_features,
                 domain_hits=dom_hits,
+                domain_colors=domain_colors,
             )
             f.write(svg_text)
 
             # Draw the detected motifs if available
             for motif_hit in detected_motifs.get(bgc_path.stem, []):
                 svg_text = draw_bgc(
-                    bgc_gbk_path=bgc_path,
+                    bgc_id=bgc_id,
+                    bgc_length=bgc_length,
+                    cds_features=cds_features,
                     domain_hits=dom_hits,
                     motif_hit=motif_hit,
-                    included_domains=include_doms
+                    included_domains=biosyn_domains,
+                    domain_colors=domain_colors,
                 )
                 f.write(svg_text)
-
-
-if __name__ == "__main__":
-    print("Command line arguments: ", sys.argv)
-    cmd = get_commands()
-
-    validated_subclusters = cmd.validated_subclusters
-    subclusterscout = cmd.subclusterscout
-    modules_lda = cmd.modules_lda
-    modules_stat = cmd.modules_stat
-    filenames = cmd.filenames
-    include_list = cmd.include_list
-    domains_color_file = cmd.domains_color_file
-    genes_color_file = cmd.genes_color_file
-    verbose = cmd.verbose
-    dom_hits_file = cmd.dom_hits_file
-    outfile = cmd.outfile
-    topic_include = cmd.topic_include
-    one = cmd.one
-    include_stat_module = cmd.include_stat_module
-    include_stat_family = cmd.include_stat_family
-    include_stat_clan = cmd.include_stat_clan
-    json_dir = cmd.json_dir
-
-    main(
-        filenames=filenames,
-        one=one,
-        outfile=outfile,
-        dom_hits_file=dom_hits_file,
-        include_list=include_list,
-        domains_color_file=domains_color_file,
-        validated_subclusters=validated_subclusters,
-        motif_hits=subclusterscout,
-        json_dir=json_dir,
-        verbose=verbose,
-    )
