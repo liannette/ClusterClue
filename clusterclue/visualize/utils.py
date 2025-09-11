@@ -5,8 +5,6 @@ from pathlib import Path
 from typing import List
 from colorsys import hsv_to_rgb, rgb_to_hsv
 
-from clusterclue.visualize.config import internal_domain_margin
-
 
 def read_color_domains_file(domains_color_file):
     color_domains = OrderedDict()
@@ -24,7 +22,7 @@ def read_color_domains_file(domains_color_file):
     return color_domains
 
 
-def read_dom_hits(dom_hits_file, domains_color_file, scaling=30, H=30):
+def read_dom_hits(dom_hits_file, domains_color_file, scaling=30):
     """Returns dict of {gene_identifier:[[domain_info]]}"""
 
     if not Path(dom_hits_file).is_file():
@@ -41,13 +39,13 @@ def read_dom_hits(dom_hits_file, domains_color_file, scaling=30, H=30):
                 fields["location"].replace("<", "").replace(">", "").split(";")
             )
             orf_start, orf_end = int(orf_start), int(orf_end)
+
             # domain location (relative to gene start)
             # multiply by 3 to convert aa to bp
             domain_start, domain_end = [
                 3 * int(f) for f in fields["q_range"].split(";")
             ]
             domain_width = domain_end - domain_start
-
             # get domain start relative to gene direction (strand)
             if orf_strand == "+":
                 # This start is relative to the start of the gene
@@ -70,9 +68,8 @@ def read_dom_hits(dom_hits_file, domains_color_file, scaling=30, H=30):
             cds_identifier = f"{fields['bgc']}_{fields['orf_num']}"
             all_domains[cds_identifier].append(
                 {
-                    "start": int(start / scaling),
-                    "width": int(domain_width / scaling),
-                    "height": int(H - 2 * internal_domain_margin),
+                    "start": start,
+                    "width": domain_width,
                     "accession": fields["domain"],
                     "fill_rgb": fill_rgb,
                     "stroke_rgb": stroke_rgb,

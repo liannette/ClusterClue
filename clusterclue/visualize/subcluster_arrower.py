@@ -102,6 +102,29 @@ def _get_arrow_head_location(L, l, strand):
 def _get_domain_coordinates(
     dX, dL, dH, X, Y, L, H, h, strand, head_start, head_end, head_length
 ):
+    """
+    Get coordinates for a domain on a gene arrow.
+
+    Domains on the tip of the arrow should not have corners sticking out
+    (which would happen if we just drew a rectangle).
+
+    Args:
+        dX: domain start relative to gene start
+        dL: domain length
+        dH: domain height
+        X: gene start x coordinate
+        Y: gene start y coordinate
+        L: gene length
+        H: gene height
+        h: gene head edge height
+        strand: gene strand ("+" or "-")
+        head_start: position where arrow head starts (relative to gene start)
+        head_end: position where arrow head ends (relative to gene start)
+        head_length: length of the arrow head
+
+    Returns:
+        points: list of [x,y] coordinates for the domain polygon
+    """
     points = []
     if strand == "+":
         # calculate how far from head_start we would crash with the slope
@@ -254,6 +277,7 @@ def draw_arrow(
     color_contour,
     cds_tag,
     domain_list,
+    scaling,
 ):
     """
     SVG code for arrow:
@@ -290,12 +314,15 @@ def draw_arrow(
         f'stroke-width="{gene_contour_thickness}" />\n'
     )
 
+    domain_height = int(H - 2 * internal_domain_margin)
     for domain in domain_list:
-        # Domains on the tip of the arrow should not have corners sticking out
+        domain_start = int(domain["start"] / scaling)
+        domain_width = int(domain["width"] / scaling)
+        domain
         domain_points = _get_domain_coordinates(
-            domain["start"],
-            domain["width"],
-            domain["height"],
+            domain_start,
+            domain_width,
+            domain_height,
             X,
             Y,
             L,
@@ -307,16 +334,14 @@ def draw_arrow(
             arrow_head_length,
         )
 
-        domain_points_str = " ".join(
-            f"{point[0]},{point[1]}" for point in domain_points
-        )
+        domain_points_str = " ".join(f"{p[0]},{p[1]}" for p in domain_points)
 
         svg_str += f"{additional_tabs}\t<g>\n"
         svg_str += f'{additional_tabs}\t\t<title>{domain["accession"]}"</title>\n'
         svg_str += (
             f'{additional_tabs}\t\t<polygon class="{domain["accession"]}" '
             f'points="{domain_points_str}" stroke-linejoin="round" '
-            f'width="{domain["width"]}" height="{domain["height"]}" '
+            f'width="{domain_width}" height="{domain_height}" '
             f'fill="rgb({",".join([str(val) for val in domain["fill_rgb"]])})" '
             f'stroke="rgb({",".join([str(val) for val in domain["stroke_rgb"]])})" '
             f'stroke-width="{domain_contour_thickness}" opacity="0.75" />\n'
@@ -415,7 +440,7 @@ def draw_bgc(
         l (int, optional): Maximum length of gene arrow head in SVG units. Defaults to 12.
         mX (int, optional): Horizontal padding in SVG units. Defaults to 10.
         mY (int, optional): Vertical padding in SVG units. Defaults to 10.
-        scaling (int, optional): Scaling factor to convert sequence positions to SVG coordinates.
+        scaling (int, optional): Horizontal scaling factor to convert sequence positions to SVG coordinates.
             Larger values create a more compact visualization. Defaults to 30.
 
     Returns:
@@ -485,6 +510,7 @@ def draw_bgc(
             color_contour=color_contour,
             cds_tag=_create_cds_tag(feature),
             domain_list=domains,
+            scaling=scaling,
         )
         if arrow == "":
             print(f"  (ArrowerSVG) Warning: something went wrong with {bgc_id}")
