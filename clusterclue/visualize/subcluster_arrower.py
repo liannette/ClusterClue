@@ -267,7 +267,6 @@ def draw_arrow(
         - strand
     the edges are ABCDEFG starting from (X,Y)
     domain_list: list of elements to draw domains
-    only_color_genes: bool, only color genes
     """
     if strand not in ["+", "-"]:
         return ""
