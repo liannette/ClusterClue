@@ -145,8 +145,6 @@ def draw_gene_arrow(
     # draw domains.
     # Domains on the tip of the arrow should not have corners sticking out of them
     for domain in domain_list:
-        svg_str += f"{additional_tabs}\t<g>\n"
-
         # [X, L, H, domain_accession, (domain_name, domain_description), color, color_contour]
         dX = domain[0]
         dL = domain[1]
@@ -156,11 +154,6 @@ def draw_gene_arrow(
         ddesc = domain[4][1]
         dcolor = domain[5]
         dccolor = domain[6]
-
-        svg_str += f'{additional_tabs}\t\t<title>{dname} ({dacc}) "{ddesc}"</title>\n'
-
-        fill_str = ",".join([str(val) for val in dcolor])
-        stroke_str = ",".join([str(val) for val in dccolor])
 
         if strand == "+":
             # calculate how far from head_start we would crash with the slope
@@ -180,13 +173,12 @@ def draw_gene_arrow(
 
             # no collision -> nice, blocky domains
             if (dX + dL) < head_start + collision_x - x_margin_offset:
-                svg_str += (
-                    f'{additional_tabs}\t\t<rect class="{dacc}" '
-                    f'x="{X + dX}" y="{Y + internal_domain_margin}" '
-                    f'stroke-linejoin="round" width="{dL}" height="{dH}" '
-                    f'fill="rgb({fill_str})" stroke="rgb({stroke_str})" '
-                    f'stroke-width="{domain_contour_thickness}" opacity="0.75" />\n'
-                )
+                points = [
+                    [X + dX, Y + internal_domain_margin],
+                    [X + dX + dL, Y + internal_domain_margin],
+                    [X + dX + dL, Y + internal_domain_margin + dH],
+                    [X + dX, Y + internal_domain_margin + dH],
+                ]
             # collision -> draw a polygon
             else:
                 points = []
@@ -234,16 +226,6 @@ def draw_gene_arrow(
                     # # arrow without tail: add point F'
                     points.append([X + dX, int(Y + H / 2 + start_y_offset)])
 
-                points_str = " ".join(f"{point[0]},{point[1]}" for point in points)
-                svg_str += (
-                    f'{additional_tabs}\t\t<polygon class="{dacc}" '
-                    f'points="{points_str}" stroke-linejoin="round" '
-                    f'width="{dL}" height="{dH}" '
-                    f'fill="rgb({fill_str})" '
-                    f'stroke="rgb({stroke_str})" '
-                    f'stroke-width="{domain_contour_thickness}" opacity="0.75" />\n'
-                )
-
         # now check other direction (strand == "-")
         else:
             # calculate how far from head_start we would crash with the slope
@@ -259,13 +241,13 @@ def draw_gene_arrow(
 
             # no collision -> nice, blocky domains
             if dX > collision_x + x_margin_offset:
-                svg_str += (
-                    f'{additional_tabs}\t\t<rect class="{dacc}" '
-                    f'x="{X + dX}" y="{Y + internal_domain_margin}" '
-                    f'stroke-linejoin="round" width="{dL}" height="{dH}" '
-                    f'fill="rgb({fill_str})" stroke="rgb({stroke_str})" '
-                    f'stroke-width="{domain_contour_thickness}" opacity="0.75" />\n'
-                )
+                points = [
+                    [X + dX, Y + internal_domain_margin],
+                    [X + dX + dL, Y + internal_domain_margin],
+                    [X + dX + dL, Y + internal_domain_margin + dH],
+                    [X + dX, Y + internal_domain_margin + dH],
+                ]
+            # collision -> draw a polygon
             else:
                 points = []
 
@@ -305,21 +287,20 @@ def draw_gene_arrow(
                             Y + internal_domain_margin + dH,
                         ]
                     )
+        fill_str = ",".join([str(val) for val in dcolor])
+        stroke_str = ",".join([str(val) for val in dccolor])
+        points_str = " ".join(f"{point[0]},{point[1]}" for point in points)
 
-                # # last point, if it's not a pointy domain
-                # if dX >= x_margin_offset:
-                #     points.append([X + dX, Y + H / 2 + start_y_offset])
-
-                points_str = " ".join(f"{point[0]},{point[1]}" for point in points)
-                svg_str += (
-                    f'{additional_tabs}\t\t<polygon class="{dacc}" '
-                    f'points="{points_str}" stroke-linejoin="round" '
-                    f'width="{dL}" height="{dH}" '
-                    f'fill="rgb({fill_str})" '
-                    f'stroke="rgb({stroke_str})" '
-                    f'stroke-width="{domain_contour_thickness}" opacity="0.75" />\n'
-                )
-        # end of domain
+        svg_str += f"{additional_tabs}\t<g>\n"
+        svg_str += f'{additional_tabs}\t\t<title>{dname} ({dacc}) "{ddesc}"</title>\n'
+        svg_str += (
+            f'{additional_tabs}\t\t<polygon class="{dacc}" '
+            f'points="{points_str}" stroke-linejoin="round" '
+            f'width="{dL}" height="{dH}" '
+            f'fill="rgb({fill_str})" '
+            f'stroke="rgb({stroke_str})" '
+            f'stroke-width="{domain_contour_thickness}" opacity="0.75" />\n'
+        )
         svg_str += f"{additional_tabs}\t</g>\n"
 
     # end of gene arrow
