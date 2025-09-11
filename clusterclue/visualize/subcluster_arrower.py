@@ -291,19 +291,11 @@ def draw_arrow(
     )
 
     for domain in domain_list:
-        # [X, L, H, domain_accession, (domain_name, domain_description), color, color_contour]
-        domain_X = domain[0]
-        domain_L = domain[1]
-        domain_H = domain[2]
-        domain_acc = domain[3]
-        domain_fill = domain[5]
-        domain_stroke = domain[6]
-
         # Domains on the tip of the arrow should not have corners sticking out
         domain_points = _get_domain_coordinates(
-            domain_X,
-            domain_L,
-            domain_H,
+            domain["start"],
+            domain["width"],
+            domain["height"],
             X,
             Y,
             L,
@@ -320,13 +312,13 @@ def draw_arrow(
         )
 
         svg_str += f"{additional_tabs}\t<g>\n"
-        svg_str += f'{additional_tabs}\t\t<title>{domain_acc}"</title>\n'
+        svg_str += f'{additional_tabs}\t\t<title>{domain["accession"]}"</title>\n'
         svg_str += (
-            f'{additional_tabs}\t\t<polygon class="{domain_acc}" '
+            f'{additional_tabs}\t\t<polygon class="{domain["accession"]}" '
             f'points="{domain_points_str}" stroke-linejoin="round" '
-            f'width="{domain_L}" height="{domain_H}" '
-            f'fill="rgb({",".join([str(val) for val in domain_fill])})" '
-            f'stroke="rgb({",".join([str(val) for val in domain_stroke])})" '
+            f'width="{domain["width"]}" height="{domain["height"]}" '
+            f'fill="rgb({",".join([str(val) for val in domain["fill_rgb"]])})" '
+            f'stroke="rgb({",".join([str(val) for val in domain["stroke_rgb"]])})" '
             f'stroke-width="{domain_contour_thickness}" opacity="0.75" />\n'
         )
         svg_str += f"{additional_tabs}\t</g>\n"
@@ -351,21 +343,21 @@ def _get_tokenized_gene(domains, included_domains):
     """
     Remove domains that were not included in the analysis.
     """
-    filtered_domains = []
+    filtered_acc = []
     for domain in domains:
-        domain_name = domain[3]
-        # get the domain name without subPfam suffix
+        acc = domain["accession"]
+        # get the domain accession without subPfam suffix
         # e.g. "PF00001_c1" -> "PF00001"
         # e.g. "PF00001" -> "PF00001"
-        match = re.search(r"_c\d+$", domain_name)
+        match = re.search(r"_c\d+$", acc)
         if match:
-            domain_clean = domain_name[: match.start()]
+            acc_clean = acc[: match.start()]
         else:
-            domain_clean = domain_name
+            acc_clean = acc
         # check if the domain is in the included domains
-        if domain_clean in included_domains:
-            filtered_domains.append(domain_name)
-    return ";".join(filtered_domains)
+        if acc_clean in included_domains:
+            filtered_acc.append(acc)
+    return ";".join(filtered_acc)
 
 
 def _create_cds_tag(feature):
@@ -456,11 +448,11 @@ def draw_bgc(
     color_fill = (255, 255, 255)
     for cds_num, feature in enumerate(cds_features, start=1):
         # Get the domain hits for this CDS
-        cds_domains = domain_hits[f"{bgc_id}_{cds_num}"]
+        domains = domain_hits[f"{bgc_id}_{cds_num}"]
 
         if motif_hit:
             # Skip cds if not part of the detected motif
-            tokenized_gene = _get_tokenized_gene(cds_domains, included_domains)
+            tokenized_gene = _get_tokenized_gene(domains, included_domains)
             if tokenized_gene not in motif_hit["genes"]:
                 continue
 
@@ -492,7 +484,7 @@ def draw_bgc(
             color=color_fill,
             color_contour=color_contour,
             cds_tag=_create_cds_tag(feature),
-            domain_list=cds_domains,
+            domain_list=domains,
         )
         if arrow == "":
             print(f"  (ArrowerSVG) Warning: something went wrong with {bgc_id}")

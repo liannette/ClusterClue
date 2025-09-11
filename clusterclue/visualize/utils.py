@@ -48,95 +48,59 @@ def read_color_domains_file(domains_color_file):
 def read_dom_hits(dom_hits_file, domains_color_file, scaling=30, H=30):
     """Returns dict of {gene_identifier:[[domain_info]]}"""
 
-    color_domains = read_color_domains_file(domains_color_file)
-
     if not Path(dom_hits_file).is_file():
-        sys.exit("Error (Arrower): " + dom_hits_file + " not found")
+        sys.exit(f"Error: {dom_hits_file} not found")
 
-    pfam_info = {}
-    new_color_domains = {}
-    identifiers = defaultdict(list)
-    with open(dom_hits_file, "r") as pfd_handle:
-        pfd_handle.readline()  # header
-        for line in pfd_handle:
-            row = line.strip("\n").split("\t")
+    domain_colors = read_color_domains_file(domains_color_file)
 
-            # use to access to parent's properties
-            # identifier = row[9].replace("<","").replace(">","")
-            # if it's the new version of pfd file, we can take the last part
-            #  to make it equal to the identifiers used in gene_list. Strand
-            #  is recorded in parent gene anyway
-            # if ":strand:+" in identifier:
-            # identifier = identifier.replace(":strand:+", "")
-            # strand = "+"
-            # if ":strand:-" in identifier:
-            # identifier = identifier.replace(":strand:-", "")
-            # strand = "-"
-            # get strand
-            loc = row[3].replace("<", "").replace(">", "")
-            g_start, g_end, strand = loc.split(";")
+    all_domains = defaultdict(list)
+    with open(dom_hits_file, "r") as f:
+        reader = csv.DictReader(f, delimiter="\t")
+        for fields in reader:
+            # gene location (in bp)
+            orf_start, orf_end, orf_strand = (
+                fields["location"].replace("<", "").replace(">", "").split(";")
+            )
+            orf_start, orf_end = int(orf_start), int(orf_end)
+            # domain location (relative to gene start)
+            # multiply by 3 to convert aa to bp
+            domain_start, domain_end = [
+                3 * int(f) for f in fields["q_range"].split(";")
+            ]
+            domain_width = domain_end - domain_start
 
-            # get start and end of pfam
-            pf_start, pf_end = row[-2].split(";")
-            width = 3 * (int(pf_end) - int(pf_start))
-
-            if strand == "+":
-                # multiply by 3 because the env. coordinate is in aminoacids, not in bp
+            # get domain start relative to gene direction (strand)
+            if orf_strand == "+":
                 # This start is relative to the start of the gene
-                start = 3 * int(pf_start)
+                start = domain_start
+            elif orf_strand == "-":
+                start = orf_end - orf_start - domain_start - domain_width  # domain_end?
             else:
-                loci_start = int(g_start)
-                loci_end = int(g_end)
-
-                start = loci_end - loci_start - 3 * int(pf_start) - width
-
-            # geometry
-            start = int(start / scaling)
-            width = int(width / scaling)
-
-            # accession -> this is now id
-            domain_acc = row[6]
+                sys.exit(f"Error: unknown strand {orf_strand}")
 
             # colors
-            try:
-                color = color_domains[domain_acc]
-            except KeyError:
-                color = new_color("domain")
-                new_color_domains[domain_acc] = color
-                color_domains[domain_acc] = color
-                pass
+            fill_rgb = domain_colors[fields["domain"]]
             # contour color is a bit darker. We go to h,s,v space for that
             h_, s, v = rgb_to_hsv(
-                float(color[0]) / 255.0,
-                float(color[1]) / 255.0,
-                float(color[2]) / 255.0,
+                float(fill_rgb[0]) / 255.0,
+                float(fill_rgb[1]) / 255.0,
+                float(fill_rgb[2]) / 255.0,
             )
-            color_contour = tuple(int(c * 255) for c in hsv_to_rgb(h_, s, 0.8 * v))
+            stroke_rgb = tuple(int(c * 255) for c in hsv_to_rgb(h_, s, 0.8 * v))
 
-            # [X, L, H, domain_acc, color, color_contour]
-            identifier = row[0] + "_" + row[4]
-            desc = pfam_info.get(domain_acc, ("", ""))
-            identifiers[identifier].append(
-                [
-                    start,
-                    width,
-                    int(H - 2 * internal_domain_margin),
-                    domain_acc,
-                    desc,
-                    color,
-                    color_contour,
-                ]
+            cds_identifier = f"{fields['bgc']}_{fields['orf_num']}"
+            all_domains[cds_identifier].append(
+                {
+                    "start": int(start / scaling),
+                    "width": int(domain_width / scaling),
+                    "height": int(H - 2 * internal_domain_margin),
+                    "accession": fields["domain"],
+                    "fill_rgb": fill_rgb,
+                    "stroke_rgb": stroke_rgb,
+                }
             )
 
-    if new_color_domains:
-        # Save all colors to new file
-        new_domains_color_file = domains_color_file + ".new"
-        with open(new_domains_color_file, "w") as f:
-            for domain_acc, color in color_domains.items():
-                color_string = ",".join(map(str, color))
-                f.write(f"{domain_acc}\t{color_string}\n")
-
-    return identifiers
+    return all_domains
 
 
 def read_txt(infile_path: str) -> List[str]:
