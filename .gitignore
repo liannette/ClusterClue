@@ -1,2 +1,10 @@
-*__pycache__/
 .vscode/
+
+# macOS
+.DS_Store
+
+# Python
+*__pycache__/
+build/
+
+ClusterClue.egg-info/
