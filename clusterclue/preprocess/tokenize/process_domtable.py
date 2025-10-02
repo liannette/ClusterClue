@@ -1,5 +1,4 @@
 import os
-from collections import Counter
 from glob import iglob
 from multiprocessing import Pool
 from Bio import SearchIO
@@ -197,7 +196,6 @@ def format_summary_line(
 def process_domtables(
     domtables_dir_path,
     cluster_file_path,
-    gene_counts_file_path,
     domain_hits_file_path,
     max_domain_overlap,
     cores,
@@ -209,7 +207,6 @@ def process_domtables(
     Args:
         domtables_dir_path (str): Path to the directory containing the domtables.
         cluster_file_path (str): Path to the output file where the clusters will be written.
-        gene_counts_file_path (str): Path to the output file where the gene counts will be written.
         domain_hits_file_path (str): Path to the output file where all domain matches will be written.
         domain_overlap_cutoff (float): Minimum overlap required between two domains to be considered overlapping.
         cores (int): Number of CPU cores to use for parallel processing.
