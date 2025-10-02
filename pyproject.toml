@@ -30,7 +30,7 @@ dev = [
 ]
 
 [project.scripts]
-ClusterClue = "clusterclue.cli:main"
+clusterclue = "clusterclue.cli:main"
 
 [tool.setuptools.packages.find]
 # find all packages
