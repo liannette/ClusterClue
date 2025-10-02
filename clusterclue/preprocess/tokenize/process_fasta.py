@@ -63,7 +63,7 @@ def process_fastas(fasta_dir_path, domtables_dir_path, hmm_file, cores, verbose)
     for file_path in fasta_file_paths:
         pool.apply_async(
             run_hmmscan,
-            args=(file_path, hmm_file, domtables_dir_path, verbose),
+            args=(file_path, hmm_file, domtables_dir_path),
             callback=lambda x: done.append(x),
             error_callback=lambda e: print(f"Error processing {file_path}: {e}"),
         )

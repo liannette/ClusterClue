@@ -73,7 +73,6 @@ class TokenizeOrchestrator:
         process_domtables(
             domtables_dir_path,
             clusters_file_path,
-            gene_counts_file_path,
             domain_hits_file_path,
             max_domain_overlap,
             cores,
