@@ -358,25 +358,8 @@ def draw_line(X, Y, L):
     )
 
 
-def _get_tokenized_gene(domains, included_domains):
-    """
-    Remove domains that were not included in the analysis.
-    """
-    filtered_acc = []
-    for domain in domains:
-        acc = domain["accession"]
-        # get the domain accession without subPfam suffix
-        # e.g. "PF00001_c1" -> "PF00001"
-        # e.g. "PF00001" -> "PF00001"
-        match = re.search(r"_c\d+$", acc)
-        if match:
-            acc_clean = acc[: match.start()]
-        else:
-            acc_clean = acc
-        # check if the domain is in the included domains
-        if acc_clean in included_domains:
-            filtered_acc.append(acc)
-    return ";".join(filtered_acc)
+def _get_tokenized_gene(domains):
+    return ";".join([domain["accession"] for domain in domains])
 
 
 def _create_cds_tag(feature):
@@ -403,7 +386,6 @@ def draw_bgc(
     domain_hits,
     domain_colors,
     motif_hit=None,
-    included_domains=None,
     H=30,
     h=5,
     l=12,  # noqa: E741
@@ -429,7 +411,6 @@ def draw_bgc(
             - threshold: Detection threshold
             - score: Motif score
             - genes: List of genes belonging to the motif
-        included_domains (list, optional): List of domain names to include in visualization.
         H (int, optional): Height of gene arrows in SVG units. Defaults to 30.
         h (int, optional): Height of gene arrow head edge in SVG units. Defaults to 5.
         l (int, optional): Maximum length of gene arrow head in SVG units. Defaults to 12.
@@ -472,8 +453,7 @@ def draw_bgc(
 
         if motif_hit:
             # Skip cds if not part of the detected motif
-            tokenized_gene = _get_tokenized_gene(domains, included_domains)
-            if tokenized_gene not in motif_hit["genes"]:
+            if _get_tokenized_gene(domains) not in motif_hit["genes"]:
                 continue
 
         # Convert numerical strand to string representation
@@ -523,7 +503,6 @@ def main(
     outfile,
     gbks_filepath,
     dom_hits_filepath,
-    biosyn_domains_filepath,
     domain_colors_filepath,
     detected_motifs_filepath=None,
     compounds_filepath=None,
@@ -534,7 +513,6 @@ def main(
 
     dom_hits = read_dom_hits(dom_hits_filepath)
     domain_colors = read_color_domains_file(domain_colors_filepath)
-    biosyn_domains = read_txt(biosyn_domains_filepath)
     detected_motifs = (
         read_detected_motifs(detected_motifs_filepath)
         if detected_motifs_filepath
@@ -579,7 +557,6 @@ def main(
                     cds_features=cds_features,
                     domain_hits=dom_hits,
                     motif_hit=motif_hit,
-                    included_domains=biosyn_domains,
                     domain_colors=domain_colors,
                 )
                 f.write(svg_text)

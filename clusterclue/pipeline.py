@@ -66,7 +66,6 @@ def run_clusterclue(
         outfile=out_html,
         gbks_filepath=gbks_file,
         dom_hits_filepath=domains_file_path,
-        biosyn_domains_filepath=biosynthetic_domains_path,
         domain_colors_filepath=domain_colors_file,
         detected_motifs_filepath=detected_motifs,
         compounds_filepath=compounds_filepath,
