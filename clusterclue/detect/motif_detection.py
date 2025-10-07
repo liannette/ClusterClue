@@ -60,9 +60,16 @@ class Motif:
         return score
 
 
-def main(clusters_file, weights_file, output_file):
+def main(clusters_file, weights_file, output_file, verbose):
+
+    if verbose:
+        print(f"\nDetecting motifs in {clusters_file} using weights from {weights_file}")
+
     clusters = parse_clusters_file(clusters_file)
     motifs = parse_motifs_file(weights_file)
+
+    if verbose:
+        print(f"Parsed {len(clusters)} clusters and {len(motifs)} motifs.")
 
     results = []
     for bgc_id, bgc_genes in clusters.items():
@@ -74,6 +81,9 @@ def main(clusters_file, weights_file, output_file):
             if len(common_genes) < 2:
                 continue
             results.append([bgc_id, motif, score, common_genes])
+
+    if verbose:
+        print(f"Detected {len(results)} motifs across {len(clusters)} clusters.")
 
     with open(output_file, "w") as outfile:
         # print header
@@ -100,3 +110,6 @@ def main(clusters_file, weights_file, output_file):
                 common_genes,
             ]
             print("\t".join(line_fields), file=outfile)
+
+    if verbose:
+        print(f"Detected motifs written to {output_file}")

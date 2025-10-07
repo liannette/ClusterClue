@@ -46,8 +46,8 @@ def run_preprocess(
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # Step 1: Tokenize the genes of the clusters into protein domain combinations
-    clusters_file_path = out_dir / "clusters_all_domains.csv"
-    gene_counts_file_path = out_dir / "clusters_all_domains_gene_counts.txt"
+    domains_file_path = out_dir / "domains.txt"
+    clusters_file_path = out_dir / "clusters.csv"
     if clusters_file_path.is_file():
         if verbose:
             print(
@@ -64,8 +64,8 @@ def run_preprocess(
         if verbose:
             print("\nTokenizing the BGC genes into protein domain combinations")
         TokenizeOrchestrator().run(
+            domains_file_path,
             clusters_file_path,
-            gene_counts_file_path,
             gbks_file,
             gbks_dir_path,
             hmm_file_path,
@@ -77,22 +77,25 @@ def run_preprocess(
         )
 
     # Step 2: Filter non-biosynthetic protein domains
-    out_file_path = out_dir / "clusters_biosyn_domains.csv"
-    if out_file_path.is_file():
+    filtered_domains_file_path = out_dir / "domains_filtered.txt"
+    filtered_clusters_file_path = out_dir / "clusters_filtered.csv"
+    if filtered_clusters_file_path.is_file():
+        # TODO: check also the other files
         if verbose:
             print(
-                f"\nSkipping domain filtering, because the file already exists: {out_file_path}"
+                f"\nSkipping domain filtering, because the file already exists: {filtered_clusters_file_path}"
             )
     else:
-        counts_file_path = out_dir / "clusters_biosyn_domains_gene_counts.txt"
         perform_domain_filtering(
+            domains_file_path,
             clusters_file_path,
             biosynthetic_domains_path,
-            out_file_path,
-            counts_file_path,
+            filtered_domains_file_path,
+            filtered_clusters_file_path,
             cores,
             verbose,
         )
-    clusters_file_path = out_file_path
+        domains_file_path = filtered_domains_file_path
+        clusters_file_path = filtered_clusters_file_path
     
-    return clusters_file_path
+    return domains_file_path, clusters_file_path

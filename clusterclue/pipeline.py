@@ -36,7 +36,7 @@ def run_clusterclue(
     # Step 1: Preprocessing clusters
     preprocess_dir_path = out_dir_path / "preprocess"
     gbks_file = preprocess_dir_path / "input_gbks_paths.txt"
-    clusters_file_path = run_preprocess(
+    domains_file_path, clusters_file_path = run_preprocess(
         preprocess_dir_path,
         existing_clusterfile,
         gbks_file,
@@ -58,19 +58,19 @@ def run_clusterclue(
                 f"\nSkipping motif detection, because the file already exists: {detected_motifs}"
             )
     else:
-        detect_motifs(clusters_file_path, motifs_file_path, detected_motifs)
+        detect_motifs(clusters_file_path, motifs_file_path, detected_motifs, verbose)
 
     # Step 3: Visualizing sub-clusters
-    dom_hits_file = preprocess_dir_path / "all_domain_hits.txt"
     out_html = out_dir_path / "detected_motifs.html"
-
     visualize_subclusters(
         outfile=out_html,
         gbks_filepath=gbks_file,
-        dom_hits_filepath=dom_hits_file,
-        biosyn_domains_filepath=biosynthetic_domains_path,
+        dom_hits_filepath=domains_file_path,
         domain_colors_filepath=domain_colors_file,
         detected_motifs_filepath=detected_motifs,
         compounds_filepath=compounds_filepath,
         verbose=verbose,
     )
+
+    if verbose:
+        print("\nAnalysis complete!")

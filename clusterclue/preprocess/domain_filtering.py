@@ -56,11 +56,24 @@ def filter_domains_in_cluster(cluster, include_domains, verbose):
     return cluster_id, filtered_genes
 
 
+def filter_domain_hits_file(domains_file_path, include_domains, filtered_domains_file_path):
+    with open(domains_file_path, "r") as f:
+        all_domains = f.readlines()
+    with open(filtered_domains_file_path, "w") as f:
+        header = all_domains[0]  # Keep the header
+        assert header.split("\t")[6] == "domain", "Expected 'domain' in 7th column of domain hits file"
+        f.write(f"{header}\n")
+        for line in all_domains[1:]:
+            if extract_domain_base_name(line.split("\t")[6]) in include_domains:
+                f.write(f"{line}\n")
+
+
 def perform_domain_filtering(
-    in_file_path: str,
-    domain_filtering_file_path: str,
-    out_file_path: str,
-    counts_file_path: str,
+    domains_file_path: str,
+    clusters_file_path: str,
+    biosynthetic_domains_path: str,
+    filtered_domains_file_path: str,
+    filtered_clusters_file_path: str,
     cores: int,
     verbose: bool,
 ) -> str:
@@ -68,19 +81,20 @@ def perform_domain_filtering(
     Wrapper for domain filtering of clusters.
 
     Args:
-        in_file_path (str): Path to the input file containing tokenised clusters.
-        domain_filtering_file_path (str): Path to the file containing the list of domains to include.
-        out_file_path (str): Path to the output file for writing the domain-filtered clusters.
+        domains_file_path (str): Path to the file for writing gene counts.
+        clusters_file_path (str): Path to the input file containing tokenised clusters.
+        biosynthetic_domains_path (str): Path to the file containing the list of domains to include.
+        filtered_clusters_file_path (str): Path to the output file for writing the domain-filtered clusters.
         counts_file_path (str): Path to the file for writing gene counts.
         verbose (bool): If True, print verbose output.
     """
     if verbose:
-        print(f"\nPerforming domain filtering on {in_file_path}")
-        print(f"Removing protein domains not listed in {domain_filtering_file_path}")
+        print(f"\nPerforming domain filtering on {clusters_file_path}")
+        print(f"Removing protein domains not listed in {biosynthetic_domains_path}")
 
     # Read the input files
-    include_domains = set(read_txt(domain_filtering_file_path))
-    clusters = read_clusters(in_file_path)
+    include_domains = set(read_txt(biosynthetic_domains_path))
+    clusters = read_clusters(clusters_file_path)
 
     # Process each cluster in parallel
     with Pool(cores, maxtasksperchild=1000) as pool:
@@ -93,8 +107,12 @@ def perform_domain_filtering(
     filtered_clusters = {cluster_id: genes for (cluster_id, genes) in results}
 
     # Write the results to the output files
-    write_clusters(filtered_clusters, out_file_path)
+    write_clusters(filtered_clusters, filtered_clusters_file_path)
+
+    filter_domain_hits_file(domains_file_path, include_domains, filtered_domains_file_path)
+    
 
     if verbose:
         print(f"\nPerformed domain filtering on {len(clusters)} tokenised clusters.")
-        print(f"The domain-filtered clusters have been saved to {out_file_path}")
+        print(f"The domain-filtered clusters have been saved to {filtered_clusters_file_path}")
+        print(f"Summary of domain hits has been saved to {filtered_domains_file_path}")
