@@ -1,24 +1,14 @@
 # Authors: Annette Lien (2025), Joris Louwen (2019), Jorge Navarro (2016), Peter Cimermancic (2010)
 
-import re
 import sys
 from math import atan2, pi, sin
-from pathlib import Path
-from Bio import SeqIO  # type: ignore
 from colorsys import hsv_to_rgb, rgb_to_hsv
 
-from clusterclue.visualize.molecule import read_compounds, draw_compounds
 from clusterclue.visualize.config import (
     internal_domain_margin,
     domain_contour_thickness,
     gene_contour_thickness,
     stripe_thickness,
-)
-from clusterclue.visualize.utils import (
-    read_txt,
-    read_detected_motifs,
-    read_dom_hits,
-    read_color_domains_file,
 )
 
 
@@ -497,69 +487,3 @@ def draw_bgc(
     svg_text += "</svg>\n"
 
     return svg_text
-
-
-def main(
-    outfile,
-    gbks_filepath,
-    dom_hits_filepath,
-    domain_colors_filepath,
-    detected_motifs_filepath=None,
-    compounds_filepath=None,
-    verbose=False,
-):
-    # Read BGC paths
-    bgc_gbk_paths = [Path(path) for path in read_txt(gbks_filepath)]
-
-    dom_hits = read_dom_hits(dom_hits_filepath)
-    domain_colors = read_color_domains_file(domain_colors_filepath)
-    detected_motifs = (
-        read_detected_motifs(detected_motifs_filepath)
-        if detected_motifs_filepath
-        else None
-    )
-    compounds = read_compounds(compounds_filepath) if compounds_filepath else None
-
-    if verbose:
-        print("\nVisualising detected motifs...")
-
-    with open(outfile, "w") as f:
-        for bgc_path in bgc_gbk_paths:
-            bgc_id = bgc_path.stem
-
-            # Write header for each BGC
-            f.write(f"<h1>{bgc_id}</h1>\n")
-
-            # Draw the molecule structure if available
-            if compounds:
-                svg_text = draw_compounds(compounds.get(bgc_id, []))
-                f.write(svg_text)
-
-            seq_record = list(SeqIO.parse(bgc_path, "genbank"))[0]
-            bgc_length = len(seq_record)
-            cds_features = [f for f in seq_record.features if f.type == "CDS"]
-
-            # Draw the full BGC
-            svg_text = draw_bgc(
-                bgc_id=bgc_id,
-                bgc_length=bgc_length,
-                cds_features=cds_features,
-                domain_hits=dom_hits,
-                domain_colors=domain_colors,
-            )
-            f.write(svg_text)
-
-            # Draw the detected motifs if available
-            for motif_hit in detected_motifs.get(bgc_path.stem, []):
-                svg_text = draw_bgc(
-                    bgc_id=bgc_id,
-                    bgc_length=bgc_length,
-                    cds_features=cds_features,
-                    domain_hits=dom_hits,
-                    motif_hit=motif_hit,
-                    domain_colors=domain_colors,
-                )
-                f.write(svg_text)
-
-    if verbose:
-        print(f"  Wrote output to {outfile}")

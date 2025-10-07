@@ -5,6 +5,16 @@ from pathlib import Path
 from typing import List
 
 
+def read_compounds(compounds_filepath):
+    compounds = defaultdict(list)
+    with open(compounds_filepath, "r") as f:
+        reader = csv.reader(f, delimiter="\t")
+        for row in reader:
+            bgc_id, name, smiles = row[0], row[1], row[2]
+            compounds[bgc_id].append((name, smiles))
+    return compounds
+
+
 def read_color_domains_file(domains_color_file):
     """
     Reads and parses a color domains file.

@@ -3,7 +3,7 @@ from importlib.resources import files
 
 from clusterclue.preprocess.orchestrator import run_preprocess
 from clusterclue.detect.motif_detection import main as detect_motifs
-from clusterclue.visualize.subcluster_arrower import main as visualize_subclusters
+from clusterclue.visualize.visualize import run_visualisation
 
 
 def run_clusterclue(
@@ -67,7 +67,7 @@ def run_clusterclue(
             print("\nSkipping visualization, because it is disabled.")
     else:
         out_html = out_dir_path / "detected_motifs.html"
-        visualize_subclusters(
+        run_visualisation(
             outfile=out_html,
             gbks_filepath=gbks_file,
             dom_hits_filepath=domains_file_path,
