@@ -17,6 +17,7 @@ def run_clusterclue(
     max_domain_overlap,
     compounds_filepath,
     disable_visualization,
+    separate_html_files,
     cores,
     verbose,
 ):
@@ -74,6 +75,7 @@ def run_clusterclue(
             domain_colors_filepath=domain_colors_file,
             detected_motifs_filepath=detected_motifs,
             compounds_filepath=compounds_filepath,
+            separate_html_files=separate_html_files,
             verbose=verbose,
         )
 

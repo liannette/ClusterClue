@@ -144,3 +144,25 @@ def read_detected_motifs(filename):
             }
             hits[bgc].append(hit)
     return hits
+
+
+def write_combined_html(
+    outfile,
+    bgc_htmls
+):
+    """Writes multiple HTML strings to a single output file."""
+    with open(outfile, "w") as f:
+        f.write("\n".join(bgc_htmls.values()))
+
+
+def write_separate_htmls(
+    outdir,
+    bgc_htmls
+):
+    """Writes multiple HTML strings to separate files in the specified directory."""
+    outdir = Path(outdir)
+    outdir.mkdir(parents=True, exist_ok=True)
+    for bgc_id, html_content in bgc_htmls.items():
+        outpath = outdir / f"{bgc_id}.html"
+        with open(outpath, "w") as f:
+            f.write(html_content)

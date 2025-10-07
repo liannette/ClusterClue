@@ -412,21 +412,9 @@ def draw_bgc(
     Returns:
         str: SVG markup as a string that can be embedded in HTML or saved to a file.
     """
-    # Create SVG header
-    header = "<div></div>\n"
-    if motif_hit:
-        # Smaller font for motif ID
-        text = (
-            f"Motif: {motif_hit['motif_id']} "
-            f"(n: {motif_hit['n_matches']}, threshold: {motif_hit['threshold']}), "
-            f"score: {motif_hit['score']}, n_genes: {len(motif_hit['genes'])}"
-        )
-        header += f"<div><h3>{text}</h3></div>\n"
-    svg_text = header
-
     svg_width = bgc_length / scaling + 2 * mX
     svg_height = 2 * h + H + 2 * mY
-    svg_text += f'<svg width="{svg_width}" height="{svg_height}">\n'
+    svg_text = f'<svg width="{svg_width}" height="{svg_height}">\n'
 
     add_tabs = "\t"
 

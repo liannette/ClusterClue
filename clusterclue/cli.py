@@ -88,6 +88,14 @@ def get_commands():
         default=False,
         help="Disable the generation of visualization outputs (default: False).",
     )
+    parser.add_argument(
+        "--separate_html_files",
+        dest="separate_html_files",
+        action="store_true",
+        default=False,
+        help="If set, individual HTML files for each BGC will be created in a separate directory. "
+        "If not set, all visualizations will be combined into a single HTML file (default: False).",
+    )
     # Other arguments
     parser.add_argument(
         "-c",
@@ -149,6 +157,7 @@ def main():
         cmd.max_domain_overlap,
         cmd.compounds_filepath,
         cmd.disable_visualization,
+        cmd.separate_html_files,
         cmd.cores,
         cmd.verbose,
     )
