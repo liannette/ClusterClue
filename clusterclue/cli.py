@@ -55,6 +55,13 @@ def get_commands():
         help="Include clusters that lie on a contig edge. (default = false)",
     )
     parser.add_argument(
+        "--hmm",
+        dest="hmm_file_path",
+        default=None,
+        metavar="<file>",
+        help="Path to a HMM file for domain detection.",
+    )
+    parser.add_argument(
         "--max_domain_overlap",
         dest="max_domain_overlap",
         default=0.1,
@@ -131,6 +138,7 @@ def main():
         cmd.existing_clusterfile,
         cmd.exclude_name,
         cmd.include_contig_edge_clusters,
+        cmd.hmm_file_path,
         cmd.max_domain_overlap,
         cmd.compounds_filepath,
         cmd.cores,
