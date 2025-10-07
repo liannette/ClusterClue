@@ -58,7 +58,7 @@ def run_clusterclue(
                 f"\nSkipping motif detection, because the file already exists: {detected_motifs}"
             )
     else:
-        detect_motifs(clusters_file_path, motifs_file_path, detected_motifs)
+        detect_motifs(clusters_file_path, motifs_file_path, detected_motifs, verbose)
 
     # Step 3: Visualizing sub-clusters
     out_html = out_dir_path / "detected_motifs.html"
@@ -72,3 +72,6 @@ def run_clusterclue(
         compounds_filepath=compounds_filepath,
         verbose=verbose,
     )
+
+    if verbose:
+        print("\nAnalysis complete!")

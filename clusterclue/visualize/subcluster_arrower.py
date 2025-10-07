@@ -543,7 +543,7 @@ def main(
     compounds = read_compounds(compounds_filepath) if compounds_filepath else None
 
     if verbose:
-        print("\nVisualising sub-clusters")
+        print("\nVisualising detected motifs...")
 
     with open(outfile, "w") as f:
         for bgc_path in bgc_gbk_paths:
@@ -583,3 +583,6 @@ def main(
                     domain_colors=domain_colors,
                 )
                 f.write(svg_text)
+
+    if verbose:
+        print(f"  Wrote output to {outfile}")
