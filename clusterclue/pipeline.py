@@ -16,6 +16,7 @@ def run_clusterclue(
     hmm_file_path,
     max_domain_overlap,
     compounds_filepath,
+    disable_visualization,
     cores,
     verbose,
 ):
@@ -61,16 +62,20 @@ def run_clusterclue(
         detect_motifs(clusters_file_path, motifs_file_path, detected_motifs, verbose)
 
     # Step 3: Visualizing sub-clusters
-    out_html = out_dir_path / "detected_motifs.html"
-    visualize_subclusters(
-        outfile=out_html,
-        gbks_filepath=gbks_file,
-        dom_hits_filepath=domains_file_path,
-        domain_colors_filepath=domain_colors_file,
-        detected_motifs_filepath=detected_motifs,
-        compounds_filepath=compounds_filepath,
-        verbose=verbose,
-    )
+    if disable_visualization:
+        if verbose:
+            print("\nSkipping visualization, because it is disabled.")
+    else:
+        out_html = out_dir_path / "detected_motifs.html"
+        visualize_subclusters(
+            outfile=out_html,
+            gbks_filepath=gbks_file,
+            dom_hits_filepath=domains_file_path,
+            domain_colors_filepath=domain_colors_file,
+            detected_motifs_filepath=detected_motifs,
+            compounds_filepath=compounds_filepath,
+            verbose=verbose,
+        )
 
     if verbose:
         print("\nAnalysis complete!")

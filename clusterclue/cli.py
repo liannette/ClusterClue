@@ -81,6 +81,13 @@ def get_commands():
         "If multiple compounds are associated with a cluster, create multiple rows. "
         "Example: 'BGC0000001	abyssomicin C	CC1C[C@]23OC(=O)C4=C2OC1C(O)C3\\C=C/C(=O)[C@@H](C)C[C@@H](C)C4=O'",
     )
+    parser.add_argument(
+        "--no_visualization", 
+        dest="disable_visualization",
+        action="store_true",
+        default=False,
+        help="Disable the generation of visualization outputs (default: False).",
+    )
     # Other arguments
     parser.add_argument(
         "-c",
@@ -141,6 +148,7 @@ def main():
         cmd.hmm_file_path,
         cmd.max_domain_overlap,
         cmd.compounds_filepath,
+        cmd.disable_visualization,
         cmd.cores,
         cmd.verbose,
     )
