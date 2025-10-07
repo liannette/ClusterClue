@@ -9,8 +9,8 @@ from clusterclue.preprocess.tokenize.process_gbk import process_gbks
 class TokenizeOrchestrator:
     def run(
         self,
+        domains_file_path,
         clusters_file_path,
-        gene_counts_file_path,
         gbks_file,
         gbks_dir_path,
         hmm_file_path,
@@ -29,7 +29,6 @@ class TokenizeOrchestrator:
 
         Args:
             clusters_file_path (str): Path to the output file where tokenized clusters will be saved.
-            gene_counts_file_path (str): Path to the output file where gene counts will be saved.
             gbks_file (str): Path to a file containing paths to the input GenBank files.
             gbks_dir_path (str): Path to the folder containing gbk files.
             hmm_file_path (str): Path to the HMM file to be used as the database.
@@ -69,11 +68,10 @@ class TokenizeOrchestrator:
         )
 
         # Step 3: Processing domtables into tokenized clusters
-        domain_hits_file_path = outdir_path / "all_domain_hits.txt"
         process_domtables(
             domtables_dir_path,
             clusters_file_path,
-            domain_hits_file_path,
+            domains_file_path,
             max_domain_overlap,
             cores,
             verbose,
@@ -83,7 +81,6 @@ class TokenizeOrchestrator:
         if verbose:
             print("\nTokenization complete.")
             print(f"Tokenized clusters have been saved to {clusters_file_path}")
-            print(f"Gene counts have been saved to {gene_counts_file_path}")
-            print(f"Summary of domain hits has been saved to {domain_hits_file_path}")
+            print(f"Summary of domain hits has been saved to {domains_file_path}")
 
         return clusters_file_path
