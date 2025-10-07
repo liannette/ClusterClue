@@ -55,6 +55,13 @@ def get_commands():
         help="Include clusters that lie on a contig edge. (default = false)",
     )
     parser.add_argument(
+        "--hmm",
+        dest="hmm_file_path",
+        default=None,
+        metavar="<file>",
+        help="Path to a HMM file for domain detection.",
+    )
+    parser.add_argument(
         "--max_domain_overlap",
         dest="max_domain_overlap",
         default=0.1,
@@ -71,8 +78,8 @@ def get_commands():
         help="Path to a tab-separated file (TSV) containing known compounds associated with clusters. "
         "Format: three columns without header (cluster_id, compound_name, compound_smiles). "
         "When provided, compounds will be included in the visualizations. "
-        "If multiple compounds are associated with a cluster, create multiple columns. "
-        "Example: 'BGC0000001	abyssomicin C	CC1C[C@]23OC(=O)C4=C2OC1C(O)C3\C=C/C(=O)[C@@H](C)C[C@@H](C)C4=O'",
+        "If multiple compounds are associated with a cluster, create multiple rows. "
+        "Example: 'BGC0000001	abyssomicin C	CC1C[C@]23OC(=O)C4=C2OC1C(O)C3\\C=C/C(=O)[C@@H](C)C[C@@H](C)C4=O'",
     )
     # Other arguments
     parser.add_argument(
@@ -131,6 +138,7 @@ def main():
         cmd.existing_clusterfile,
         cmd.exclude_name,
         cmd.include_contig_edge_clusters,
+        cmd.hmm_file_path,
         cmd.max_domain_overlap,
         cmd.compounds_filepath,
         cmd.cores,

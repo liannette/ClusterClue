@@ -3,7 +3,7 @@ from pathlib import Path
 
 from clusterclue.preprocess.tokenize.process_domtable import process_domtables
 from clusterclue.preprocess.tokenize.process_fasta import process_fastas
-from clusterclue.preprocess.tokenize.process_gbk import process_gbks, write_gbk_paths_file
+from clusterclue.preprocess.tokenize.process_gbk import process_gbks
 
 
 class TokenizeOrchestrator:
@@ -73,7 +73,6 @@ class TokenizeOrchestrator:
         process_domtables(
             domtables_dir_path,
             clusters_file_path,
-            gene_counts_file_path,
             domain_hits_file_path,
             max_domain_overlap,
             cores,

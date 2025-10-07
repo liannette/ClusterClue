@@ -4,7 +4,7 @@ from glob import iglob
 from multiprocessing import Pool
 
 
-def run_hmmscan(fasta_file_path, hmm_file_path, out_folder, verbose):
+def run_hmmscan(fasta_file_path, hmm_file_path, out_folder):
     """Runs the hmmscan tool on a given FASTA file using a specified HMM file, and saves the output to a specified folder.
     If the output file already exists in the specified folder or in an existing domain folder, it will be reused.
 
@@ -12,7 +12,6 @@ def run_hmmscan(fasta_file_path, hmm_file_path, out_folder, verbose):
         fasta_file_path (str): Path to the input FASTA file.
         hmm_file_path (str): Path to the HMM file.
         out_folder (str): Directory where the output file will be saved.
-        verbose (bool): If True, prints the hmmscan command being executed.
     Returns:
         str: Status of the operation, either "copied", "existed", or "converted".
     Raises:
@@ -64,7 +63,7 @@ def process_fastas(fasta_dir_path, domtables_dir_path, hmm_file, cores, verbose)
     for file_path in fasta_file_paths:
         pool.apply_async(
             run_hmmscan,
-            args=(file_path, hmm_file, domtables_dir_path, verbose),
+            args=(file_path, hmm_file, domtables_dir_path),
             callback=lambda x: done.append(x),
             error_callback=lambda e: print(f"Error processing {file_path}: {e}"),
         )

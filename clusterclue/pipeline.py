@@ -13,6 +13,7 @@ def run_clusterclue(
     existing_clusterfile,
     exclude_name,
     include_contig_edge_clusters,
+    hmm_file_path,
     max_domain_overlap,
     compounds_filepath,
     cores,
@@ -30,7 +31,6 @@ def run_clusterclue(
     # Paths to data files
     data_dir = Path(files("clusterclue").joinpath("data"))
     biosynthetic_domains_path = data_dir / "biosynthetic_domains.txt"
-    hmm_file_path = data_dir / "Pfam_100subs_tc.hmm"
     domain_colors_file = data_dir / "domains_color_file.tsv"
 
     # Step 1: Preprocessing clusters
