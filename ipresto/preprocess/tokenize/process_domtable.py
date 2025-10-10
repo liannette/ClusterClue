@@ -272,7 +272,8 @@ def process_domtables(
             verbose=verbose,
         )
         results = pool.map(process_func, domtable_paths)
-        clusters = [res for res in results if res is not None]
+    clusters = [res for res in results if res is not None]
+    clusters.sort(key=lambda x: x[0])  # Sort clusters by cluster_id
     n_failed = len(domtable_paths) - len(clusters)
 
     # Filter the clusters for non-empty genes
