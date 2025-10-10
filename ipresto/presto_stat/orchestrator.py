@@ -48,9 +48,7 @@ class StatOrchestrator:
                     f"clusters from {cluster_file}"
                 )
             modules = generate_stat_modules(
-                out_dir,
                 bgcs,
-                min_genes_per_bgc,
                 pval_cutoff,
                 cores,
                 verbose,

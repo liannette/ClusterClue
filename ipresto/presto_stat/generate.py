@@ -451,9 +451,7 @@ def calculate_interaction_pvals(
 
 
 def generate_stat_modules(
-    out_dir,
     bgcs,
-    min_genes,
     max_pval,
     cores,
     verbose,
@@ -464,8 +462,8 @@ def generate_stat_modules(
 
     # remove modules that do not occur in the bgc dataset
     if verbose:
-        print("\nRemoving modules that do not occur at least once in the BGC dataset")
-    min_occurence = 1
+        print("\nRemoving modules that do not occur at least twice in the BGC dataset")
+    min_occurence = 2
     existing_modules = filter_infrequent_modules(
         modules, bgcs, min_occurence, cores
     )
@@ -512,26 +510,27 @@ def filter_infrequent_modules(
     new_id = 1
     updated_modules = OrderedDict()
     for mod_id, mod in modules.items():
-        if len(bgcs_per_module[mod_id]) >= min_occurence:
-            updated_modules[new_id] = StatModule(
-                module_id=new_id,
+        n_occurences = len(bgcs_per_module[mod_id])
+        if n_occurences >= min_occurence:
+            new_module = StatModule(
+                module_id=mod_id,
                 strictest_pval=mod.strictest_pval,
                 tokenised_genes=mod.tokenised_genes,
+                n_occurrences=n_occurences,
             )
+            updated_modules[new_id] = new_module
             new_id += 1
 
     return updated_modules
 
 
-def module_is_redundant(module_id: int, modules: dict, n_occurences: dict) -> bool:
+def module_is_redundant(module_id: int, modules: dict) -> bool:
     """
     Check if a module is contained in any other module with the same number of occurrences.
 
     Args:
         module_id (str): The ID of the module to check.
         modules (dict): Dictionary where keys are module IDs and values are StatModule objects.
-        n_occurences (dict): Dictionary where keys are module IDs and values are the number of occurrences.
-
     Returns:
         bool: True if the module is contained in another, False otherwise.
     """
@@ -540,7 +539,7 @@ def module_is_redundant(module_id: int, modules: dict, n_occurences: dict) -> bo
         if module_id != other_module_id:
             other_gene_set = set(other_module.tokenised_genes)
             if (
-                n_occurences[module_id] == n_occurences[other_module_id] and 
+                modules[module_id].n_occurrences == modules[other_module_id].n_occurrences and 
                 gene_set.issubset(other_gene_set)
                 ):
                 return True
@@ -559,15 +558,11 @@ def filter_redundant_modules(modules: dict, bgcs: dict, cores: int) -> dict:
     Returns:
         dict: A dictionary of filtered modules.
     """
-    modules_per_bgc = detect_modules_in_bgcs(bgcs, modules, cores)
-    bgcs_per_module = get_bgcs_per_module(modules, modules_per_bgc)
-    
     module_ids = list(modules.keys())
-    n_occurences = {mod_id: len(bgcs_per_module[mod_id]) for mod_id in module_ids}
-
+  
     pool = Pool(cores, maxtasksperchild=5)
     results = pool.map(
-        partial(module_is_redundant, modules=modules, n_occurences=n_occurences), 
+        partial(module_is_redundant, modules=modules), 
         module_ids
     )
     pool.close()
@@ -576,13 +571,14 @@ def filter_redundant_modules(modules: dict, bgcs: dict, cores: int) -> dict:
 
     new_id = 1
     updated_modules = OrderedDict()
-    for module_id in module_ids:
-        if not is_redundant[module_id]:
-            mod = modules[module_id]
-            updated_modules[new_id] = StatModule(
-                module_id=new_id,
-                strictest_pval=mod.strictest_pval,
-                tokenised_genes=mod.tokenised_genes,
-            )
-            new_id += 1
+    for mod_id, mod in modules.items():
+        if is_redundant[mod_id]:
+            continue
+        updated_modules[new_id] = StatModule(
+            module_id=new_id,
+            strictest_pval=mod.strictest_pval,
+            tokenised_genes=mod.tokenised_genes,
+            n_occurrences=mod.n_occurrences,
+        )
+        new_id += 1
     return updated_modules

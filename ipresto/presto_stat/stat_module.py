@@ -4,12 +4,14 @@ class StatModule:
         module_id,
         strictest_pval,
         tokenised_genes,
+        n_occurrences=None, 
     ):
         self.module_id = module_id
         self.n_genes = len(tokenised_genes)
         self.n_domains = sum(len(domains) for domains in tokenised_genes)
         self.tokenised_genes = tokenised_genes
         self.strictest_pval = strictest_pval
+        self.n_occurrences = n_occurrences
 
     def __repr__(self):
         return (
@@ -18,7 +20,8 @@ class StatModule:
             f"strictest_pval={self.strictest_pval}, "
             f"n_genes={self.n_genes}, "
             f"n_domains={self.n_domains}, "
-            f"tokenised_genes={self.tokenised_genes})"
+            f"tokenised_genes={self.tokenised_genes}), "
+            f"n_occurrences={self.n_occurrences})"
         )
 
     def __eq__(self, other):
@@ -40,6 +43,7 @@ class StatModule:
         """
         return {
             "module_id": self.module_id,
+            "n_occurrences": self.n_occurrences,
             "strictest_pval": self.strictest_pval,
             "n_genes": self.n_genes,
             "n_domains": self.n_domains,
