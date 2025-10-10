@@ -883,7 +883,7 @@ if __name__ == '__main__':
         pass  # clear outfile
 
     if cmd.one:
-        files = [cmd.filenames]
+        files = [cmd.filenames, ]
     else:
         with open(cmd.filenames,'r') as inf:
             files = [line.strip() for line in inf]
