@@ -32,7 +32,7 @@ class TopOrchestrator:
     ) -> str:
         """ """
         # Create output directory
-        presto_top_dir = Path(out_dir_path)  # presto_top_dir -> out_dir
+        presto_top_dir = Path(out_dir_path)
         presto_top_dir.mkdir(parents=True, exist_ok=True)
 
         # writing detailed log information to seperate log file
@@ -105,4 +105,4 @@ class TopOrchestrator:
 
         if not top_model_file_path:
             outfile = presto_top_dir / "model_convergence_likelihood.pdf"
-            plot_convergence(log_out, iterations)
+            plot_convergence(log_out, iterations, outfile)

@@ -775,6 +775,7 @@ def filter_matches(topic_matches, feat_scores, filt_features, min_t_match,
             # instead of filtering on probability (min_t_match), we filter on
             # sum of the newfeats scores as bgcs can be very large
             # removed: match_p > min_t_match
+            # if len(newfeats) > 2 and overlap_score > overlap_score_cutoff:
             if total_feat_scores > total_feat_score_cutoff and \
                     overlap_score > overlap_score_cutoff:
                 if newfeats:
