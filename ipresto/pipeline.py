@@ -21,9 +21,11 @@ class IprestoPipeline:
         similarity_cutoff,
         remove_infrequent_genes,
         min_gene_occurrence,
+        run_stat,
         stat_modules_file_path,
         stat_pval_cutoff,
         stat_n_families_range,
+        run_top,
         top_model_file_path,
         top_n_topics, 
         top_amplify, 
@@ -66,42 +68,44 @@ class IprestoPipeline:
         )
 
         # Step 2: Statistical subcluster detection (PRESTO-STAT)
-        if verbose:
-            print("\n=== PRESTO-STAT: statistical subcluster detection ===")
-        stat_dir_path = out_dir_path / "stat_subclusters"
-        StatOrchestrator().run(
-            stat_dir_path,
-            clusters_file_path,
-            stat_modules_file_path,
-            stat_pval_cutoff,
-            stat_n_families_range,
-            min_genes_per_bgc,
-            cores,
-            verbose,
-        )
+        if run_stat:
+            if verbose:
+                print("\n=== PRESTO-STAT: statistical subcluster detection ===")
+            stat_dir_path = out_dir_path / "stat_subclusters"
+            StatOrchestrator().run(
+                stat_dir_path,
+                clusters_file_path,
+                stat_modules_file_path,
+                stat_pval_cutoff,
+                stat_n_families_range,
+                min_genes_per_bgc,
+                cores,
+                verbose,
+            )
 
         # Step 3: Topic modelling for ubcluster motif detection (PRESTO-TOP)
-        if verbose:
-            print("\n=== PRESTO-TOP: subcluster motif detection using topic modelling ===")
-        top_dir_path = out_dir_path / "top_subclusters"
-        TopOrchestrator().run(
-            top_dir_path,
-            clusters_file_path,
-            top_model_file_path,
-            top_n_topics, 
-            top_amplify, 
-            top_iterations,
-            top_chunksize, 
-            top_update, 
-            top_visualise,
-            top_alpha,
-            top_beta,
-            top_plot,
-            top_feat_num,
-            top_min_feat_score,
-            cores,
-            verbose,
-        )
+        if run_top:
+            if verbose:
+                print("\n=== PRESTO-TOP: subcluster motif detection using topic modelling ===")
+            top_dir_path = out_dir_path / "top_subclusters"
+            TopOrchestrator().run(
+                top_dir_path,
+                clusters_file_path,
+                top_model_file_path,
+                top_n_topics, 
+                top_amplify, 
+                top_iterations,
+                top_chunksize, 
+                top_update, 
+                top_visualise,
+                top_alpha,
+                top_beta,
+                top_plot,
+                top_feat_num,
+                top_min_feat_score,
+                cores,
+                verbose,
+            )
 
         # if visualize:
         #     if verbose:

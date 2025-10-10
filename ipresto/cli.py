@@ -1,10 +1,8 @@
-#!/usr/bin/env python3
-
+import sys
 import argparse
 from multiprocessing import cpu_count
 
 from ipresto.pipeline import IprestoPipeline
-import sys
 
 
 def get_commands():
@@ -103,7 +101,8 @@ def get_commands():
         default=0.95,
         type=float,
         metavar="<float>",
-        help="Cutoff for cluster similarity in redundancy filtering (default:0.95).",
+        help="Cutoff for cluster similarity in redundancy filtering. It refers "
+        "to the adjecency index of domains (default:0.95).",
     )
     parser.add_argument(
         "--remove_infrequent_genes",
@@ -120,6 +119,13 @@ def get_commands():
         "number of times in the data (default: 3).",
     )
     # PRESTO-STAT
+    parser.add_argument(
+        "--no_presto_stat",
+        action="store_false",
+        dest="run_stat",
+        default=True,
+        help="If provided, PRESTO-STAT will not be run",
+    )
     parser.add_argument(
         "--stat_modules",
         dest="stat_modules_file_path",
@@ -149,7 +155,14 @@ def get_commands():
         "clustering STAT modules. Each integer represents a different clustering "
         "configuration (default: off).",
     )
-    # PRESTO-TOP
+    # PRESTO-TOP\
+    parser.add_argument(
+        "--no_presto_top",
+        dest="run_top",
+        action="store_false",
+        default=True,
+        help="If provided, PRESTO-TOP will not be run",
+    )
     parser.add_argument(
         '--top_model',
         dest="top_model_file_path",
@@ -326,9 +339,11 @@ def main():
         cmd.similarity_cutoff,
         cmd.remove_infrequent_genes,
         cmd.min_gene_occurrence,
+        cmd.run_stat,
         cmd.stat_modules_file_path,
         cmd.stat_pval_cutoff,
         cmd.stat_n_families_range,
+        cmd.run_top,
         cmd.top_model_file_path,
         cmd.top_n_topics, 
         cmd.top_amplify, 
