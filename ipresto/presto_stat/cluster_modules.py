@@ -21,11 +21,7 @@ def create_binary_matrix(modules: dict):
         token_pattern=r"(?u)[^,]+",  # features/genes are separated by ','
     )
 
-    rownames = [module_id for module_id, _ in sorted(modules.items())]
-    corpus = [
-        tokenized_genes_to_string(module.tokenised_genes)
-        for _, module in sorted(modules.items())
-    ]
+    rownames = sorted(modules.keys())
 
     # corpus must be list of strings
     corpus = [
