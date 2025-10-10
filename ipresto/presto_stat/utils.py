@@ -132,7 +132,7 @@ def write_stat_modules(modules: dict, file_path: str):
     with open(file_path, "w", newline="") as outfile:
         writer = csv.DictWriter(outfile, fieldnames=header, delimiter="\t")
         writer.writeheader()
-        for module_id, module in modules.items():
+        for module in modules.values():
             row = module.to_dict()
             row["tokenised_genes"] = tokenized_genes_to_string(row["tokenised_genes"])
             writer.writerow(row)
