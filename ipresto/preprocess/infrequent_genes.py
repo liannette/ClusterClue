@@ -77,7 +77,7 @@ def remove_infrequent_genes(
 
     if verbose:
         print(
-            f"Removed in total {total_bgcs - len(filtered_bgcs)} of {total_bgcs} BGCs, "
+            f"Removed {total_bgcs - len(filtered_bgcs)} of {total_bgcs} BGCs, "
             f" due to containing less than {min_genes} non-empty genes."
         )
 
