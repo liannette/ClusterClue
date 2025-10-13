@@ -108,7 +108,8 @@ def get_commands():
         "--remove_infrequent_genes",
         action="store_true",
         default=False,
-        help="If provided, infrequent genes will be removed from the bgcs."
+        help="If provided, genes will be removed from the bgcs if they occur "
+        "less than --min_gene_occurrence times in the dataset.",
     )
     parser.add_argument(
         "--min_gene_occurrence",
