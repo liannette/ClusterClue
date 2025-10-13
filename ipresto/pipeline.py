@@ -1,3 +1,4 @@
+import time
 from pathlib import Path
 
 from ipresto.preprocess.orchestrator import PreprocessOrchestrator
@@ -44,6 +45,8 @@ class IprestoPipeline:
         """
         Runs the entire pipeline.
         """
+        start_time = time.time()
+
         out_dir_path = Path(out_dir_path)
         out_dir_path.mkdir(parents=True, exist_ok=True)
 
@@ -112,3 +115,10 @@ class IprestoPipeline:
         #         print("=== Visualizations ===")
         #     plot_histogram(load_data(preprocessed_data_path), output_path="histogram.png")
         #     plot_comparison(results, output_path="comparison.png")
+
+        end_time = time.time()
+        if verbose:
+            elapsed_time = end_time - start_time
+            hours, remainder = divmod(elapsed_time, 3600)
+            minutes, seconds = divmod(remainder, 60)
+            print(f"\nTotal runtime: {int(hours)} hours and {int(minutes)} minutes")
