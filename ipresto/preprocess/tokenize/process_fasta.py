@@ -31,7 +31,7 @@ def run_hmmscan(fasta_file_path, hmm_file_path, out_file_path):
             hit.write(out_file, format="domains", header=False)
 
 
-def run_hmmscan_with_error_handling(fasta_file_path, hmm_file_path, out_folder, verbose):
+def run_hmmscan_wrapper(fasta_file_path, hmm_file_path, out_folder, verbose):
     fasta_file_path = Path(fasta_file_path)
     out_file_path = Path(out_folder) / f"{fasta_file_path.stem}.domtable"
 
@@ -70,7 +70,7 @@ def process_fastas(fasta_dir_path, domtables_dir_path, hmm_file_path, cores, ver
     # Process each fasta file in parallel
     with Pool(cores, maxtasksperchild=100) as pool:
         process_func = partial(
-            run_hmmscan_with_error_handling,
+            run_hmmscan_wrapper,
             hmm_file_path=hmm_file_path,
             out_folder=domtables_dir_path,
             verbose=verbose,
