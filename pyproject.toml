@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools >= 64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "iPRESTO"
+dynamic = ["version"]
+license = "AGPL-3.0-or-later"
+description = "Detection of biosynthetic sub-clusters"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+authors = [
+    { name = "Annette Lien", email = "annette.lien@posteo.de" }
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+]
+dependencies = [
+    "biopython",
+    "pyhmmer",
+    "matplotlib",
+    "networkx",
+    "numpy",
+    "gensim",
+    "pyLDAvis",
+    "pandas",
+    "scipy",
+    "seaborn",
+    "statsmodels",
+    "sympy",
+    "scikit-learn",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-cov"
+]
+
+[project.scripts]
+ipresto = "ipresto.cli:main"
+
+[tool.setuptools.packages.find]
+# find all packages
+where = ["."]
+include = ["*"]
+
+[tool.setuptools]
+include-package-data = true
