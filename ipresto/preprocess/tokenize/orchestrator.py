@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 
 from ipresto.preprocess.tokenize.process_domtable import process_domtables
@@ -52,7 +51,7 @@ class TokenizeOrchestrator:
 
         # Step 1: Processing gbk files into fasta files
         fastas_dir_path = outdir_path / "fastas"
-        os.makedirs(fastas_dir_path, exist_ok=True)
+        fastas_dir_path.mkdir(exist_ok=True, parents=True)
         process_gbks(
             gbks_dir_path,
             fastas_dir_path,
@@ -64,7 +63,7 @@ class TokenizeOrchestrator:
 
         # Step 2: Processing fastas with hmmscan to generate domtables
         domtables_dir_path = outdir_path / "domtables"
-        os.makedirs(domtables_dir_path, exist_ok=True)
+        domtables_dir_path.mkdir(exist_ok=True, parents=True)
         process_fastas(
             fastas_dir_path,
             domtables_dir_path,
