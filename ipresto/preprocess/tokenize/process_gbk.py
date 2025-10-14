@@ -1,14 +1,13 @@
-import os
 from collections import OrderedDict
-from glob import glob, iglob
 from multiprocessing import Pool
-
+from functools import partial
 from Bio import SeqIO
+from pathlib import Path
 
 
 def write_gbk_paths_file(gbks_dir_path, out_file_path):
     # write names of all input gbk to file
-    gbk_file_paths = list(iglob(os.path.join(gbks_dir_path, "*.gbk")))
+    gbk_file_paths = list(Path(gbks_dir_path).glob("*.gbk"))
     with open(out_file_path, "w") as f:
         for gbk in gbk_file_paths:
             f.write(f"{gbk}\n")
@@ -38,16 +37,16 @@ def convert_gbk2fasta(
         - "filtered" if the file is excluded due to contig edge
         - "converted" if the conversion to FASTA is successful.
     """
-    gbk_file_name = os.path.split(gbk_file_path)[1]
-    bgc_name = gbk_file_name.split(".gbk")[0]
-    out_file_path = os.path.join(out_folder, f"{bgc_name}.fasta")
+    gbk_file_path = Path(gbk_file_path)
+    bgc_name = gbk_file_path.stem
+    out_file_path = Path(out_folder) / f"{bgc_name}.fasta"
 
     # exclude files with certain words in the name
     if any([word in bgc_name for word in exclude_name]):
         return "excluded"
 
     # check if the fasta file already exists
-    if os.path.isfile(out_file_path):
+    if out_file_path.is_file():
         return "existed"
 
     # parse the gbk file for conversion to fasta
@@ -65,7 +64,7 @@ def convert_gbk2fasta(
             contig_edge = feature.qualifiers.get("contig_edge")[0]
             if contig_edge == "True":
                 if verbose:
-                    print(f"  excluding {gbk_file_name}: contig edge")
+                    print(f"  excluding {bgc_name}: contig edge")
                 return "filtered"
 
         # convert cds to fasta
@@ -129,16 +128,12 @@ def process_gbks(
     if verbose:
         print("\nProcessing gbk files into fasta files...")
 
-    gbk_file_paths = list(iglob(os.path.join(gbks_dir_path, "*.gbk")))
-
+    gbk_file_paths = list(Path(gbks_dir_path).glob("*.gbk"))
     # Remove fasta files of bgcs that did not have a gbk file
-    cluster_ids = [
-        os.path.split(gbk_path)[1].split(".gbk")[0] for gbk_path in gbk_file_paths
-    ]
-    for fasta_file_path in glob(os.path.join(fastas_dir_path, "*.fasta")):
-        clus_id = os.path.split(fasta_file_path)[1].split(".fasta")[0]
-        if clus_id not in cluster_ids:
-            os.remove(fasta_file_path)
+    cluster_ids = [fp.stem for fp in gbk_file_paths]
+    for fasta_file_path in Path(fastas_dir_path).glob("*.fasta"):
+        if fasta_file_path.stem not in cluster_ids:
+            fasta_file_path.unlink()
 
     # Process each gbk file in parallel
     done = []
@@ -162,7 +157,7 @@ def process_gbks(
     # Collect results
     if verbose:
         status_counts = {
-            status: done.count(status)
+            status: results.count(status)
             for status in ["converted", "existed", "excluded", "failed", "filtered"]
         }
         n_converted = status_counts["converted"]
