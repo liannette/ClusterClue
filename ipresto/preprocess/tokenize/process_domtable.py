@@ -49,7 +49,7 @@ def domains_are_overlapping(tup1, tup2, max_overlap):
     return overlap > min(length1, length2) * max_overlap
 
 
-def domtable_to_tokenized_cluster(domtable_path, max_domain_overlap):
+def process_domtable(domtable_path, max_domain_overlap):
     """Parses a domtab file and extracts domain information.
 
     Args:
@@ -142,7 +142,7 @@ def domtable_to_tokenized_cluster(domtable_path, max_domain_overlap):
     return cluster_id, tokenized_genes, all_domain_hits
 
 
-def process_domtable(
+def process_domtable_with_error_handling(
     domtable_path: str, max_domain_overlap: float, verbose: bool
 ) -> list:
     """
@@ -158,10 +158,10 @@ def process_domtable(
               Returns None if there is an error in processing.
     """
     try:
-        return domtable_to_tokenized_cluster(domtable_path, max_domain_overlap)
+        return process_domtable(domtable_path, max_domain_overlap)
     except Exception as e:
         if verbose:
-            print(f"  excluding {Path(domtable_path).stem}, error in processing : {e}")
+            print(f"  Error while processing {Path(domtable_path).stem}: {e}")
         return None
 
 
@@ -263,7 +263,7 @@ def process_domtables(
     # Process each domtable in parallel
     with Pool(cores, maxtasksperchild=100) as pool:
         process_func = partial(
-            process_domtable,
+            process_domtable_with_error_handling,
             max_domain_overlap=max_domain_overlap,
             verbose=verbose,
         )
@@ -302,6 +302,6 @@ def process_domtables(
         if n_converted > 0:
             print(f" - {n_converted} domtables were converted to tokenised clusters.")
         if n_excluded > 0:
-            print(f" - {n_excluded} excluded for having < {min_genes} non-empty genes")
+            print(f" - {n_excluded} excluded for having < {min_genes} genes with domain hits")
         if n_failed > 0:
-            print(f" - {n_failed} domtables failed be converted to tokenised clusters")
+            print(f" - {n_failed} domtables failed to be converted to tokenised clusters")
