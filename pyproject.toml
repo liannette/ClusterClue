@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools >= 64"]
+requires = ["setuptools >= 64", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -41,6 +41,9 @@ dev = [
 
 [project.scripts]
 ipresto = "ipresto.cli:main"
+
+[tool.setuptools.dynamic]
+version = {attr = "ipresto.__version__"}
 
 [tool.setuptools.packages.find]
 # find all packages
