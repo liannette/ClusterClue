@@ -157,7 +157,7 @@ def process_gbks(
     # Collect results
     if verbose:
         status_counts = {
-            status: results.count(status)
+            status: done.count(status)
             for status in ["converted", "existed", "excluded", "failed", "filtered"]
         }
         n_converted = status_counts["converted"]
