@@ -15,59 +15,43 @@ def write_gbk_paths_file(gbks_dir_path, out_file_path):
 
 def convert_gbk2fasta(
     gbk_file_path,
-    out_folder,
+    out_file_path,
     include_contig_edge_clusters,
-    exclude_name,
     verbose,
 ):
     """Convert a GenBank (gbk) file to a FASTA file.
 
     Parameters:
     gbk_file_path (str): Path to the input gbk file.
-    out_folder (str): Directory where the output FASTA file will be saved.
+    out_file_path (str): Path where the output FASTA file will be saved.
     include_contig_edge_clusters (bool): If True, include clusters at contig edges.
-    exclude_name (list): List of words; files containing any of these words in their name will be excluded.
     verbose (bool): If True, print additional information to stdout.
 
     Returns:
-    str:
-        - "excluded" if the file name contains any word from the exclude list.
-        - "existed" if the FASTA file already exists in the output folder.
-        - "failed" if there is an error parsing the gbk file.
-        - "filtered" if the file is excluded due to contig edge
-        - "converted" if the conversion to FASTA is successful.
+        str:
+            - "filtered" if the file is excluded due to contig edge
+            - "converted" if the conversion to FASTA is successful.
     """
-    gbk_file_path = Path(gbk_file_path)
-    bgc_name = gbk_file_path.stem
-    out_file_path = Path(out_folder) / f"{bgc_name}.fasta"
-
-    # exclude files with certain words in the name
-    if any([word in bgc_name for word in exclude_name]):
-        return "excluded"
-
-    # check if the fasta file already exists
-    if out_file_path.is_file():
-        return "existed"
+    bgc_name = Path(gbk_file_path).stem
 
     # parse the gbk file for conversion to fasta
-    try:
-        record = next(SeqIO.parse(gbk_file_path, "genbank"))
-    except ValueError as e:
-        print(f" Excluding {gbk_file_path}: {e}")
-        return "failed"
+    record = list(SeqIO.read(gbk_file_path, "genbank"))
 
+    # check if contig edge cluster
+    if not include_contig_edge_clusters:
+        for feature in record.features:
+            if feature.type == "protocluster":
+                contig_edge = feature.qualifiers.get("contig_edge")[0]
+                if contig_edge == "True":
+                    if verbose:
+                        print(f"  excluding {bgc_name}: contig edge")
+                    return "filtered"
+                break
+
+    # extract sequences and write to fasta
     seqs = OrderedDict()
     num_genes = 0
     for feature in record.features:
-        # exclude contig edge clusters
-        if not include_contig_edge_clusters and feature.type == "protocluster":
-            contig_edge = feature.qualifiers.get("contig_edge")[0]
-            if contig_edge == "True":
-                if verbose:
-                    print(f"  excluding {bgc_name}: contig edge")
-                return "filtered"
-
-        # convert cds to fasta
         if feature.type == "CDS":
             gene_id = "gid:"
             if "gene" in feature.qualifiers:
@@ -92,7 +76,7 @@ def convert_gbk2fasta(
             header = header.replace(" ", "")  # hmmscan uses space as delim
             seqs[header] = feature.qualifiers.get("translation", [""])[0]
             if seqs[header] == "":
-                print("  {} does not have a translation".format(header))
+                raise ValueError(f"{gene_id} does not have a translation")
             num_genes += 1
 
     # write the fasta file
@@ -101,6 +85,54 @@ def convert_gbk2fasta(
             compl_header = "{}/{}".format(seq, num_genes)
             out.write("{}\n{}\n".format(compl_header, seqs[seq]))
     return "converted"
+
+
+def convert_gbk2fasta_wrapper(
+    gbk_file_path,
+    out_folder,
+    include_contig_edge_clusters,
+    exclude_name,
+    verbose,
+):
+    """Convert a GenBank (gbk) file to a FASTA file.
+
+    Parameters:
+        gbk_file_path (str): Path to the input gbk file.
+        out_folder (str): Directory where the output FASTA file will be saved.
+        include_contig_edge_clusters (bool): If True, include clusters at contig edges.
+        exclude_name (list): List of words; files containing any of these words in their name will be excluded.
+        verbose (bool): If True, print additional information to stdout.
+
+    Returns:
+        str:
+            - "excluded" if the file name contains any word from the exclude list.
+            - "existed" if the FASTA file already exists in the output folder.
+            - "failed" if there is an error parsing the gbk file.
+            - "filtered" if the file is excluded due to contig edge
+            - "converted" if the conversion to FASTA is successful.
+    """
+    gbk_file_path = Path(gbk_file_path)
+    out_file_path = Path(out_folder) / f"{gbk_file_path.stem}.fasta"
+
+    # exclude files with certain words in the name
+    if any([word in str(gbk_file_path.stem) for word in exclude_name]):
+        return "excluded"
+    # check if the fasta file already exists
+    if out_file_path.exists():
+        return "existed"
+    # convert gbk to fasta
+    try:
+        status = convert_gbk2fasta_wrapper(
+            gbk_file_path,
+            out_folder,
+            include_contig_edge_clusters,
+            verbose,
+        )
+        return status
+    # handle errors
+    except Exception as e:
+        print(f"  Unexpected error processing {gbk_file_path.name}: {e}")
+        return "failed"
 
 
 def process_gbks(
