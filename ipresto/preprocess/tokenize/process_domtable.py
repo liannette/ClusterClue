@@ -161,8 +161,7 @@ def process_domtable(
         return domtable_to_tokenized_cluster(domtable_path, max_domain_overlap)
     except Exception as e:
         if verbose:
-            cluster_id = Path(domtable_path).stem
-            print(f"  excluding {cluster_id}, error in processing : {e}")
+            print(f"  excluding {Path(domtable_path).stem}, error in processing : {e}")
         return None
 
 
