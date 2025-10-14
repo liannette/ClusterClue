@@ -1,8 +1,5 @@
-import os
 from collections import Counter
-from glob import iglob
 from multiprocessing import Pool
-
 from Bio import SearchIO
 from pathlib import Path
 from functools import partial
@@ -262,10 +259,10 @@ def process_domtables(
     if verbose:
         print("\nParsing domtables into tokenized clusters...")
         
-    domtable_paths = list(iglob(os.path.join(domtables_dir_path, "*.domtable")))
+    domtable_paths = list(Path(domtables_dir_path).glob("*.domtable"))
 
     # Process each domtable in parallel
-    with Pool(cores, maxtasksperchild=1000) as pool:
+    with Pool(cores, maxtasksperchild=100) as pool:
         process_func = partial(
             process_domtable,
             max_domain_overlap=max_domain_overlap,
@@ -274,32 +271,32 @@ def process_domtables(
         results = pool.map(process_func, domtable_paths)
     clusters = [res for res in results if res is not None]
     clusters.sort(key=lambda x: x[0])  # Sort clusters by cluster_id
-    n_failed = len(domtable_paths) - len(clusters)
 
     # Filter the clusters for non-empty genes
-    clusters = filter_non_empty_genes(clusters, min_genes, verbose)
-    n_converted = len(clusters)
-    n_excluded = len(domtable_paths) - len(clusters) - n_failed
+    filtered_clusters = filter_non_empty_genes(clusters, min_genes, verbose)
 
-    cluster_file = open(cluster_file_path, "w")
-    for cluster_id, tokenized_genes, _ in clusters:
-        cluster_file.write(format_cluster_to_string(cluster_id, tokenized_genes))
-    cluster_file.close()
-
+    # Write the clusters to a file
+    with open(cluster_file_path, "w") as cluster_file:
+        for cluster_id, tokenized_genes, _ in filtered_clusters:
+            cluster_file.write(format_cluster_to_string(cluster_id, tokenized_genes))
 
     # Write the gene counts to a file
     gene_counter = Counter()
-    for _, tokenized_genes, _ in clusters:
+    for _, tokenized_genes, _ in filtered_clusters:
         gene_counter.update(tokenized_genes)
     write_gene_counts(gene_counter, gene_counts_file_path)
 
     # Write the summary file
     domain_hits_file = open(domain_hits_file_path, "w")
     write_summary_header(domain_hits_file)
-    for _, _, domain_hits in clusters:
+    for _, _, domain_hits in filtered_clusters:
         for domain_hit in domain_hits:
             domain_hits_file.write(format_summary_line(*domain_hit))
     domain_hits_file.close()
+
+    n_failed = len(domtable_paths) - len(clusters)
+    n_converted = len(filtered_clusters)
+    n_excluded = len(domtable_paths) - len(filtered_clusters) - n_failed
 
     if verbose:
         print(f"\nProcessed {len(domtable_paths)} domtables:")
