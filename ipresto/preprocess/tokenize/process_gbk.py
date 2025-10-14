@@ -173,10 +173,15 @@ def process_gbks(
 
         # Print summary of processing
         print(f"\nProcessed {len(gbk_file_paths)} gbk files:")
-        print(f" - {n_existed} fasta files already existed in the output folder")
-        print(f" - {n_converted} gbk files were converted to fasta files")
-        print(
-            f" - {n_excluded} gbk files were excluded due to the file name containing '{' or '.join(exclude_name)}'"
-        )
-        print(f" - {n_filtered} gbk files were excluded due to being at contig edges")
-        print(f" - {n_failed} gbk files failed be converted to fasta files")
+        if n_existed > 0:
+            print(f" - {n_existed} fasta files already existed in the output folder")
+        if n_converted > 0:
+            print(f" - {n_converted} gbk files were converted to fasta files")
+        if n_excluded > 0:
+            print(
+                f" - {n_excluded} gbk files were excluded due to the file name containing '{' or '.join(exclude_name)}'"
+            )
+        if n_filtered > 0:
+            print(f" - {n_filtered} gbk files were excluded due to being at contig edges")
+        if n_failed > 0:
+            print(f" - {n_failed} gbk files failed be converted to fasta files")
