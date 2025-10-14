@@ -129,6 +129,7 @@ def process_gbks(
         print("\nProcessing gbk files into fasta files...")
 
     gbk_file_paths = list(Path(gbks_dir_path).glob("*.gbk"))
+
     # Remove fasta files of bgcs that did not have a gbk file
     cluster_ids = [fp.stem for fp in gbk_file_paths]
     for fasta_file_path in Path(fastas_dir_path).glob("*.fasta"):
@@ -136,28 +137,20 @@ def process_gbks(
             fasta_file_path.unlink()
 
     # Process each gbk file in parallel
-    done = []
-    pool = Pool(cores, maxtasksperchild=20)
-    for file_path in gbk_file_paths:
-        pool.apply_async(
+    with Pool(cores, maxtasksperchild=100) as pool:
+        process_func = partial(
             convert_gbk2fasta,
-            args=(
-                file_path,
-                fastas_dir_path,
-                include_contig_edge_clusters,
-                exclude_name,
-                verbose,
-            ),
-            callback=lambda x: done.append(x),
-            error_callback=lambda e: print(f"Error processing {file_path}: {e}"),
+            out_folder=fastas_dir_path,
+            include_contig_edge_clusters=include_contig_edge_clusters,
+            exclude_name=exclude_name,
+            verbose=verbose,
         )
-    pool.close()
-    pool.join()
-
-    # Collect results
+        results = pool.map(process_func, gbk_file_paths)
+        
+    # Print summary of processing
     if verbose:
         status_counts = {
-            status: done.count(status)
+            status: results.count(status)
             for status in ["converted", "existed", "excluded", "failed", "filtered"]
         }
         n_converted = status_counts["converted"]
@@ -166,7 +159,6 @@ def process_gbks(
         n_failed = status_counts["failed"]
         n_filtered = status_counts["filtered"]
 
-        # Print summary of processing
         print(f"\nProcessed {len(gbk_file_paths)} gbk files:")
         if n_existed > 0:
             print(f" - {n_existed} fasta files already existed in the output folder")
