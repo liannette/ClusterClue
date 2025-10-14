@@ -113,8 +113,8 @@ def perform_domain_filtering(
         n_excluded = len(clusters) - len(results)
         print(f"\nPerformed domain filtering on {len(clusters)} tokenised clusters:")
         print(f"  - {len(results)} clusters passed the domain filtering")
-        print(
-            f"  - {n_excluded} clusters were excluded due to containing less "
-            f"than {min_genes} genes with domain hits after domain filtering"
-        )
+        if n_excluded > 0:
+            print(f"  - {n_excluded} clusters were excluded due to containing less "
+                  f"than {min_genes} genes with domain hits after domain filtering"
+            )
         print(f"The domain-filtered clusters have been saved to {out_file_path}")
