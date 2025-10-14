@@ -8,7 +8,6 @@ from ipresto.preprocess.utils import (
     write_gene_counts,
     read_txt,
 )
-from collections import Counter
 from typing import Tuple, Set
 from multiprocessing import Pool
 from functools import partial
