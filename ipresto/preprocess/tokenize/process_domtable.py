@@ -303,6 +303,9 @@ def process_domtables(
 
     if verbose:
         print(f"\nProcessed {len(domtable_paths)} domtables:")
-        print(f" - {n_converted} domtables were converted to tokenised clusters.")
-        print(f" - {n_excluded} excluded for having < {min_genes} non-empty genes")
-        print(f" - {n_failed} domtables failed be converted to tokenised clusters")
+        if n_converted > 0:
+            print(f" - {n_converted} domtables were converted to tokenised clusters.")
+        if n_excluded > 0:
+            print(f" - {n_excluded} excluded for having < {min_genes} non-empty genes")
+        if n_failed > 0:
+            print(f" - {n_failed} domtables failed be converted to tokenised clusters")
