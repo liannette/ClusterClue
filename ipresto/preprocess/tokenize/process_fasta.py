@@ -6,36 +6,21 @@ from pyhmmer.plan7 import HMMFile
 from pyhmmer.easel import SequenceFile
 
 
-def run_hmmscan(fasta_file_path, hmm_file_path, out_folder, verbose):
-    """Runs pyhmmer hmmscan and saves the output to a specified folder.
-
-    If the output file already exists in the specified folder, it will be reused.
+def run_hmmscan(fasta_file_path, hmm_file_path, out_file_path):
+    """Runs pyhmmer hmmscan and saves the output to a specified file.
 
     Args:
         fasta_file_path (str): Path to the input FASTA file.
         hmm_file_path (str): Path to the HMM file to be used as the database.
-        out_folder (str): Directory where the output file will be saved.
-        verbose (bool): If True, prints the hmmscan command being executed.
+        out_file_path (str): Path to the output file where the results will be saved.
+
     Returns:
-        str: Status of the operation, either "existed", "failed" or "converted".
+        None
     """
-    fasta_file_path = Path(fasta_file_path)
-    name = fasta_file_path.stem
-    out_file_path = Path(out_folder) / f"{name}.domtable"
-
-    # check if the domtable file already exists in the out dir
-    if out_file_path.is_file():
-        return "existed"
-
     # run hmmscan
-    try:
-        with HMMFile(hmm_file_path) as hmm_file, \
-             SequenceFile(fasta_file_path, digital=True) as seq_file:
-            hits = list(hmmscan(seq_file, hmm_file, cpus=1, bit_cutoffs="trusted"))
-    except Exception as e:
-        if verbose:
-            print(f"Error running hmmscan on {fasta_file_path}: {e}")
-        return "failed"
+    with HMMFile(hmm_file_path) as hmm_file, \
+            SequenceFile(fasta_file_path, digital=True) as seq_file:
+        hits = list(hmmscan(seq_file, hmm_file, cpus=1, bit_cutoffs="trusted"))
 
     # Write the hits to the output file
     with open(out_file_path, "wb") as out_file:
@@ -44,7 +29,24 @@ def run_hmmscan(fasta_file_path, hmm_file_path, out_folder, verbose):
         # Write the remaining hits without repeating the header
         for hit in hits[1:]:
             hit.write(out_file, format="domains", header=False)
-    return "converted"
+
+
+def run_hmmscan_with_error_handling(fasta_file_path, hmm_file_path, out_folder, verbose):
+    fasta_file_path = Path(fasta_file_path)
+    out_file_path = Path(out_folder) / f"{fasta_file_path.stem}.domtable"
+
+    # check if the domtable file already exists in the out dir
+    if out_file_path.is_file():
+        return "existed"
+    # run hmmscan
+    try:
+        run_hmmscan(fasta_file_path, hmm_file_path, out_file_path)
+        return "converted"
+    # handle errors
+    except Exception as e:
+        if verbose:
+            print(f"  Unexpected error processing {fasta_file_path}: {e}")
+        return "failed"
 
 
 def process_fastas(fasta_dir_path, domtables_dir_path, hmm_file_path, cores, verbose):
@@ -54,11 +56,11 @@ def process_fastas(fasta_dir_path, domtables_dir_path, hmm_file_path, cores, ver
         fasta_file_paths (list): List of paths to the input FASTA files.
         domtables_dir_path (str): Path to the directory where output domtables will be stored.
         hmm_file_path (str): Path to the HMM file to be used as the database.
-        verbose (bool): If True, print additional information during execution.
         cores (int): Number of CPU cores to use for parallel processing.
+        verbose (bool): If True, print additional information during execution.
 
     Returns:
-        list: List of paths to the generated domtable files.
+        None
     """
     if verbose:
         print("\nRunning hmmscan on fastas to generate domtables...")
@@ -68,7 +70,7 @@ def process_fastas(fasta_dir_path, domtables_dir_path, hmm_file_path, cores, ver
     # Process each fasta file in parallel
     with Pool(cores, maxtasksperchild=100) as pool:
         process_func = partial(
-            run_hmmscan,
+            run_hmmscan_with_error_handling,
             hmm_file_path=hmm_file_path,
             out_folder=domtables_dir_path,
             verbose=verbose,
