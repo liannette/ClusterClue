@@ -45,7 +45,7 @@ def run_hmmscan_wrapper(fasta_file_path, hmm_file_path, out_folder, verbose):
     # handle errors
     except Exception as e:
         if verbose:
-            print(f"  Unexpected error processing {fasta_file_path}: {e}")
+            print(f"  Unexpected error processing {fasta_file_path.name}: {e}")
         return "failed"
 
 
