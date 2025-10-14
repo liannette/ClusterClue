@@ -1,4 +1,5 @@
 from multiprocessing import Pool
+from functools import partial
 from pathlib import Path
 from pyhmmer.hmmer import hmmscan
 from pyhmmer.plan7 import HMMFile
@@ -66,10 +67,13 @@ def process_fastas(fasta_dir_path, domtables_dir_path, hmm_file_path, cores, ver
 
     # Process each fasta file in parallel
     with Pool(cores, maxtasksperchild=100) as pool:
-        results = pool.starmap(
-            run_hmmscan, 
-            [(f, hmm_file_path, domtables_dir_path, verbose) for f in fasta_file_paths]
+        process_func = partial(
+            run_hmmscan,
+            hmm_file_path=hmm_file_path,
+            out_folder=domtables_dir_path,
+            verbose=verbose,
         )
+        results = pool.map(process_func, fasta_file_paths)
 
     # Print summary of processing
     if verbose:
