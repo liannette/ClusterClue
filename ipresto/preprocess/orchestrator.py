@@ -82,8 +82,6 @@ class PreprocessOrchestrator:
             write_clusters(clusters, clusters_file_path)
             write_gene_counts(count_gene_occurrences(clusters), gene_counts_file_path)
         else:
-            if verbose:
-                print("\nTokenizing the BGC genes into protein domain combinations")
             TokenizeOrchestrator().run(
                 clusters_file_path,
                 gene_counts_file_path,

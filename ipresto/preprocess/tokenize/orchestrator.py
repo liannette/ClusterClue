@@ -42,6 +42,9 @@ class TokenizeOrchestrator:
         Returns:
             str: Path to the tokenized clusters file.
         """
+        if verbose:
+            print("\nTokenizing the BGC genes into protein domain combinations")
+            
         outdir_path = Path(clusters_file_path).parent
 
         # write the paths of all input gbks to a file
