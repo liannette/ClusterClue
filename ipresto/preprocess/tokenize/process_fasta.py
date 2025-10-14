@@ -63,7 +63,7 @@ def process_fastas(fasta_dir_path, domtables_dir_path, hmm_file_path, cores, ver
         None
     """
     if verbose:
-        print("\nRunning hmmscan on fastas to generate domtables...")
+        print("\nProcessing fastas with hmmscan to generate domtables...")
 
     fasta_file_paths = list(Path(fasta_dir_path).glob("*.fasta"))
 
