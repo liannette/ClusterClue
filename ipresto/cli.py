@@ -348,8 +348,6 @@ def main():
     out_dir_path.mkdir(parents=True, exist_ok=True)
 
     log_file_path = out_dir_path / "ipresto.log"
-    if log_file_path.exists():
-        log_file_path.unlink()  # Remove existing log file to start fresh
     setup_logging(log_filepath=log_file_path, verbose=cmd.verbose)
     logger = logging.getLogger("ipresto.cli")
 
