@@ -221,8 +221,9 @@ def calc_adj_pval_wrapper(count_dict, clusdict, cores, verbose):
     pvals = [p for p in pvals_ori if check_c[(p[0], p[1])] == 2]
     if not len(pvals) == len(pvals_ori):
         p_excl = [p for p in pvals if check_c[(p[0], p[1])] != 2]
-        logger.info("  error with domain pairs {}".format(", ".join(p_excl)))
-        logger.info("  these are excluded")
+        excluded_pairs = [f"{p[0]}-{p[1]}" for p in p_excl]
+        logger.info(f"Found {len(excluded_pairs)} domain pairs with inconsistent p-values")
+        logger.info(f"Excluded domain pairs: {', '.join(excluded_pairs)}")
     # Benjamini-Yekutieli multiple testing correction
     pvals_adj = multipletests(list(zip(*pvals))[2], method="fdr_by")[1]
     # adding adjusted pvals and choosing max
@@ -290,9 +291,9 @@ def calc_coloc_pval_wrapper(count_dict, clusdict, cores, verbose):
     check_c = Counter(check_ps)
     pvals = [p for p in pvals_ori if check_c[(p[0], p[1])] == 2]
     if not len(pvals) == len(pvals_ori):
-        p_excl = [p for p in pvals if check_c[(p[0], p[1])] != 2]
-        logger.info("  error with domain pairs {}".format(", ".join(p_excl)))
-        logger.info("  these are excluded")
+        excluded_pairs = [p for p in pvals if check_c[(p[0], p[1])] != 2]
+        logger.info(f"Found {len(excluded_pairs)} domain pairs with inconsistent p-values")
+        logger.info(f"Excluded domain pairs: {', '.join(excluded_pairs)}")
     # Benjamini-Yekutieli multiple testing correction
     pvals_adj = multipletests(list(zip(*pvals))[2], method="fdr_by")[1]
     # adding adjusted pvals and choosing max
@@ -332,9 +333,8 @@ def generate_graph(edges, verbose):
     """
     g = nx.Graph()
     g.add_edges_from(edges)
-    logger.info("\nGenerated graph with:")
-    logger.info(" {} nodes".format(g.number_of_nodes()))
-    logger.info(" {} edges".format(g.number_of_edges()))
+    logger.info(f"Generated graph with {g.number_of_nodes()} nodes "
+                f"and {g.number_of_edges()} edges")
     return g
 
 
@@ -383,17 +383,17 @@ def identify_significant_modules(edges, max_pval, cores, verbose):
         dict: A dictionary where keys are module IDs and values are StatModule objects.
     """
     logger.info(
-            f"\nIdentifying subcluster modules applying a maximum interaction "
+            f"Identifying subcluster modules applying a maximum interaction "
             f"p-value cutoff of {max_pval}"
         )
 
     significant_edges = [e for e in edges if e[2]["pval"] <= max_pval]
-    logger.info(f"  {len(significant_edges)} significant gene pair interactions")
+    logger.info(f"Found {len(significant_edges)} significant gene pair interactions")
 
     pval_cutoffs = {pv["pval"] for pv in list(zip(*significant_edges))[2]}
     if len(pval_cutoffs) > 100000:  # reduce the number of pvals to loop through
         pval_cutoffs = {round_to_n(x, 3) for x in pval_cutoffs}
-    logger.info(f"  looping through {len(pval_cutoffs)} p-value cutoffs")
+    logger.info(f"Looping through {len(pval_cutoffs)} p-value cutoffs...")
 
     pool = Pool(cores, maxtasksperchild=10)
     results = pool.imap(
@@ -454,7 +454,7 @@ def generate_stat_modules(
     modules = identify_significant_modules(p_values, max_pval, cores, verbose)
 
     # remove modules that do not occur in the bgc dataset
-    logger.info("\nRemoving modules that do not occur at least twice in the BGC dataset")
+    logger.info("Removing modules that do not occur at least twice in the BGC dataset")
     min_occurence = 2
     existing_modules = filter_infrequent_modules(
         modules, bgcs, min_occurence, cores
@@ -466,7 +466,7 @@ def generate_stat_modules(
     logger.info(f"Removed {n_removed} ({round(percent_removed, 2)}%) modules.")
 
     # remove modules that are contained by another one, occuring the same amount in the dataset
-    logger.info("\nRemoving modules that are contained by another one")
+    logger.info("Removing modules that are contained by another one")
     filtered_modules = filter_redundant_modules(existing_modules, bgcs, cores)
 
     # report how many modules were removed
