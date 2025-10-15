@@ -1,8 +1,10 @@
+import logging
 from pathlib import Path
-
 from ipresto.preprocess.tokenize.process_domtable import process_domtables
 from ipresto.preprocess.tokenize.process_fasta import process_fastas
 from ipresto.preprocess.tokenize.process_gbk import process_gbks, write_gbk_paths_file
+
+logger = logging.getLogger(__name__)
 
 
 class TokenizeOrchestrator:
@@ -42,9 +44,8 @@ class TokenizeOrchestrator:
         Returns:
             str: Path to the tokenized clusters file.
         """
-        if verbose:
-            print("\nTokenizing the BGC genes into protein domain combinations")
-            
+        logger.info("Tokenizing the BGC genes into protein domain combinations")
+
         outdir_path = Path(clusters_file_path).parent
 
         # write the paths of all input gbks to a file
@@ -88,11 +89,9 @@ class TokenizeOrchestrator:
             verbose,
         )
 
-        # Print paths
-        if verbose:
-            print("\nTokenization complete.")
-            print(f"Tokenized clusters have been saved to {clusters_file_path}")
-            print(f"Gene counts have been saved to {gene_counts_file_path}")
-            print(f"Summary of domain hits has been saved to {domain_hits_file_path}")
+        # Print paths to output files
+        logger.info(f"Tokenized clusters have been saved to {clusters_file_path}")
+        logger.info(f"Gene counts have been saved to {gene_counts_file_path}")
+        logger.info(f"Summary of domain hits has been saved to {domain_hits_file_path}")
 
         return clusters_file_path

@@ -1,15 +1,18 @@
+import logging
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.cluster import KMeans
+from joblib import parallel_backend
+from pathlib import Path
 from ipresto.presto_stat.utils import (
     tokenized_genes_to_string,
     write_module_families,
 )
-from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.cluster import KMeans
-import numpy as np
-from joblib import parallel_backend
-from pathlib import Path
-import matplotlib.pyplot as plt
-import matplotlib
 matplotlib.use("Agg")  # Use a non-interactive backend
+
+logger = logging.getLogger(__name__)
 
 
 def create_binary_matrix(modules: dict):
@@ -68,31 +71,24 @@ def cluster_stat_modules(
 ):
     out_dir = Path(out_dir)
 
-    if verbose:
-        print("Creating binary matrix for clustering.")
+    logger.info("Creating binary matrix for clustering.")
     sparse_feature_matrix, colnames, rownames = create_binary_matrix(modules)
-    if verbose:
-        print(
-            f"Binary matrix created with dimensions: {sparse_feature_matrix.shape}."
-        )
+    logger.info(f"Binary matrix created with dimensions: {sparse_feature_matrix.shape}.")
 
     inertias = []
     for k in k_range:
-        if verbose:
-            print(
-                f"\nClustering {len(modules)} STAT modules into {k} families via "
-                "k-means clustering."
-            )
+        logger.info(
+            f"Clustering {len(modules)} STAT modules into {k} families via "
+            "k-means clustering."
+        )
 
         k_means = run_kmeans(sparse_feature_matrix, k, cores)
         inertias.append(k_means.inertia_)
-        if verbose:
-            print(f"Clustering completed for k={k}. Inertia: {k_means.inertia_}")
+        logger.info(f"Clustering completed for k={k}. Inertia: {k_means.inertia_}")
 
         # write the families to a file
         out_file_path = out_dir / f"stat_module_{k}_families.txt"
         write_module_families(rownames, k_means.labels_, out_file_path)
-        if verbose:
-            print(f"STAT module families for k={k} saved to: {out_file_path}")
+        logger.info(f"STAT module families for k={k} saved to: {out_file_path}")
     
     return inertias

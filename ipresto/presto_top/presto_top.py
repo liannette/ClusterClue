@@ -12,6 +12,7 @@ python3 presto_top.py -i my_clusterfile.csv -o my_output_folder -c 10
         -t 1000 -C 3000 -I 2000 --min_genes 2 -f 0.95 -n 75 --classes
         my_bgc_classes.txt --known_subclusters known_subcl.txt
 """
+import logging
 import os
 # to account for a weird bug with ldamulticore and numpy:
 # https://github.com/RaRe-Technologies/gensim/issues/1988
@@ -35,6 +36,7 @@ from math import ceil
 from numpy import sqrt
 from operator import itemgetter
 
+logger = logging.getLogger(__name__)
 
 
 def run_lda(domlist, no_below, no_above, num_topics, cores, outfolder,
@@ -68,18 +70,21 @@ def run_lda(domlist, no_below, no_above, num_topics, cores, outfolder,
         dict_lda.filter_extremes(no_below=no_below, no_above=no_above)
         dict_lda.save(dict_file)
     else:
-        print("Loaded existing dict_file with words")
+        logger.info("Loaded existing dict_file with words")
         dict_lda = Dictionary.load(dict_file)
-    print('\nConstructing LDA model with {} BGCs and:'.format(len(domlist)),
+    logger.info('Constructing LDA model with {} BGCs and:'.format(len(domlist)),
           dict_lda)
+    
     corpus_bow = [dict_lda.doc2bow(doms) for doms in domlist]
     corpus_file = model + 'mm'
     if not os.path.isfile(corpus_file):
         MmCorpus.serialize(corpus_file, corpus_bow)
+
     # to allow for x iterations of chunksize y
     passes = ceil(iters * chnksize / len(domlist))
     # gamma_threshold based on Blei et al. 2010
     offst = 1
+
     # convert alpha/beta in int if needed
     if alpha not in ['symmetric', 'asymmetric', 'auto']:
         alpha = int(alpha)
@@ -98,30 +103,31 @@ def run_lda(domlist, no_below, no_above, num_topics, cores, outfolder,
             eta=beta)
         lda.save(model)
     else:
-        print('Loaded existing LDA model')
+        logger.info('Loaded existing LDA model')
         lda = LdaMulticore.load(model)
         if update_model:
             # update the model. to be functional the input should be stationary
             # (no topic drift in new documents)
-            print("Existing model is updated")
+            logger.info("Existing model is updated")
             # for the multicore model new parameters cannot be added, the
             # parameters from the existing model will be used to update
             lda.update(corpus_bow, chunks_as_numpy=True)
             lda.save(model)
+
     # cm = CoherenceModel(model=lda, corpus=corpus_bow, dictionary=dict_lda,\
     # coherence='c_v', texts=domlist)
     # coherence = cm.get_coherence()
     # print('Coherence: {}, num_topics: {}'.format(coherence, num_topics))
     if ldavis:
         visname = os.path.join(outfolder, 'lda_method-tsne.html')
-        print('Running pyLDAvis for visualisation')
+        logger.info('Running pyLDAvis for visualisation')
         vis = pyLDAvis.gensim.prepare(
             lda, corpus_bow, dict_lda, sort_topics=False, mds='tsne')
-        print('  saving visualisation with t-sne to html')
+        logger.info('  saving visualisation with t-sne to html')
         try:
             pyLDAvis.save_html(vis, visname)
         except TypeError as e:
-            print('  saving visualisation failed with:', e)
+            logger.error('  saving visualisation failed with: {}'.format(e))
     return lda, dict_lda, corpus_bow
 
 
@@ -150,13 +156,13 @@ def run_lda_from_existing(existing_model, domlist, outfolder,
         MmCorpus.serialize(corpus_file, corpus_bow)
 
     lda = LdaMulticore.load(existing_model)
-    print('Loaded existing LDA model')
-    print('Applying existing LDA model on {} BGCs with'.format(len(domlist)),
+    logger.info('Loaded existing LDA model')
+    logger.info('Applying existing LDA model on {} BGCs with'.format(len(domlist)),
           dict_lda)
     # cm = CoherenceModel(model=lda, corpus=corpus_bow, dictionary=dict_lda,\
     # coherence='c_v', texts=domlist)
     # coherence = cm.get_coherence()
-    # print('Coherence: {}, num_topics: {}'.format(coherence, num_topics))
+    # logger.info('Coherence: {}, num_topics: {}'.format(coherence, num_topics))
 
     return lda, dict_lda, corpus_bow
 
@@ -253,7 +259,7 @@ def process_lda(lda, dict_lda, corpus_bow, feat_num, bgc_dict, min_f_score,
             bgc_class_heatmap(bgc_with_topics, bgc_classes, topic_num,
                               outfolder, metric='correlation')
     else:
-        print("\nPlots about stats could not be made as there were no matches")
+        logger.info("Plots about stats could not be made as there were no matches")
 
 
 def select_number_of_features(lda_topics, outfolder, min_f_score, feat_num,
@@ -312,7 +318,7 @@ def select_number_of_features(lda_topics, outfolder, min_f_score, feat_num,
                                                          ','.join(doms),
                                                          ','.join(
                                                              map(str, nums))))
-    print('  {} empty topics'.format(len(zero_topics)))
+    logger.info('{} empty topics'.format(len(zero_topics)))
     return filt_features, feat_scores, zero_topics
 
 
@@ -323,7 +329,7 @@ def link_bgc_topics(lda, dict_lda, corpus_bow, bgcs, outfolder, bgcl_dict,
 
     Writes file to outfolder/bgc_topics.txt and supplies plots if plot=True
     """
-    print('\nLinking topics to BGCs')
+    logger.info('Linking topics to BGCs')
     doc_topics = os.path.join(outfolder, 'bgc_topics.txt')
     bgc2topic = {}
     if amplif:
@@ -374,7 +380,7 @@ def link_bgc_topics(lda, dict_lda, corpus_bow, bgcs, outfolder, bgcl_dict,
             bgc2topic[bgc] = topd
     # if plot:
     # extract length of each bgc vs len of topic in each bgc
-    print('  plotting length of matches vs length of bgcs')
+    logger.info('  plotting length of matches vs length of bgcs')
     lengths = ((bgcl_dict[bgc], len(val[t][1])) for bgc, val in
                bgc2topic.items() for t in val)
     len_name = os.path.join(outfolder, 'len_bgcs_vs_len_topic_match.pdf')
@@ -555,11 +561,11 @@ def line_plot_known_matches(known_subcl_matches, outname, cutoff, steps=0.1):
                     if overlap[0] >= thresh and overlap[1] > 1:
                         xs[i] += 1
                         break
-    print(('\nThis method detects {} known sub-clusters with an overlap' +
+    logger.info(('\nThis method detects {} known sub-clusters with an overlap' +
            ' cutoff of {}. With all different overlap cutoffs:').format(
         xs[2], ys[2]))
-    print(', '.join(map(str, ys)))
-    print(', '.join(map(str, xs)))
+    logger.info(', '.join(map(str, ys)))
+    logger.info(', '.join(map(str, xs)))
     fig, ax = plt.subplots()
     line = ax.plot(ys, xs)
     ax.set_ylim(0, len(known_subcl_matches))
@@ -632,7 +638,7 @@ def write_topic_matches(topic_matches, bgc_classes, outname, plot):
     bgc_classes: {bgc: [class1,class2]}
     outname: str, filepath
     """
-    print('\nWriting matches to {}'.format(outname))
+    logger.info('Writing matches to {}'.format(outname))
     # a set of bgc classes
     s_b_c = set([v for vals in bgc_classes.values() for v in vals])
     s_b_c.add('None')
@@ -701,11 +707,11 @@ def write_topic_matches(topic_matches, bgc_classes, outname, plot):
 def barplot_topic_stats(df, outname):
     """makes a stacked barplot of the classes in df for each topic
 
-    df: pandas dataframe with index as topic numbers and columns as classes
+    df: pandas dataframe with    index as topic numbers and columns as classes
     outname: str, filepath
     """
-    print('  making barplot of topic stats')
-    df = df.fillna(0)
+    logger.info('  making barplot of topic stats')
+    df = df.fillna(0).infer_objects(copy=False)
     len_no_none = len(df.columns) - 1
     if len(df.columns) > 10:
         cols = sns.cubehelix_palette(len_no_none, start=1.2, rot=2,
@@ -748,7 +754,7 @@ def filter_matches(topic_matches, feat_scores, filt_features, min_t_match,
         of their feature scores) that should be present in subcluster
     filt_topic_matches: {topic:[[prob,(gene,prob)],bgc,overlap_score]}
     """
-    print('\nFiltering matches')
+    logger.info('Filtering matches')
     filt_topic_matches = defaultdict(list)
     for topic, matches in topic_matches.items():
         # filt_topic_matches[topic] = []
@@ -794,12 +800,13 @@ def bgc_topic_heatmap(bgc_with_topic, bgc_classes, topic_num, outfolder,
     topic_num: int, number of topics in the model
 
     """
-    print('\nMaking clustered heatmap, metric: {}'.format(metric))
+    logger.info('Making clustered heatmap, metric: {}'.format(metric))
     # make pd dataframe from bgc with topic with prob as value for present tpic
     bgcs, topics = zip(*bgc_with_topic.items())
     data = [{v[0]: v[1] for v in val} for val in topics]
     df = pd.DataFrame(data, index=bgcs, columns=list(range(topic_num)))
-    df = df.fillna(0)
+    df = df.apply(pd.to_numeric, errors='coerce')
+    df = df.fillna(0).infer_objects(copy=False)
     # colour rows by bgc class
     class_set = set(bgc_classes.keys())
     labels = [bgc_classes[bgc][0] if bgc in class_set else 'None' for bgc
@@ -817,6 +824,9 @@ def bgc_topic_heatmap(bgc_with_topic, bgc_classes, topic_num, outfolder,
     s_labels = ['None'] + s_labels
     row_labs = pd.DataFrame(labels, index=bgcs, columns=['BGC classes'])
     row_colours = row_labs['BGC classes'].map(lut)  # map colour to a label
+
+    assert not df.isnull().values.any() # DEBUG
+    assert np.isfinite(df.values).all() # DEBUG
 
     g = sns.clustermap(df, cmap='nipy_spectral', row_colors=row_colours,
                        linewidths=0, metric=metric, yticklabels=False,
@@ -850,12 +860,12 @@ def bgc_class_heatmap(bgc_with_topic, bgc_classes, topic_num, outfolder,
     topic_num: int, number of topics in the model
 
     """
-    print('\nMaking clustered heatmap of classes, metric: {}'.format(metric))
+    logger.info('Making clustered heatmap of classes, metric: {}'.format(metric))
     # make pd dataframe from bgc with topic with prob as value for present tpic
     bgcs, topics = zip(*bgc_with_topic.items())
     data = [{v[0]: v[1] for v in val} for val in topics]
     df = pd.DataFrame(data, index=bgcs, columns=list(range(topic_num)))
-    df = df.fillna(0)
+    df = df.fillna(0).infer_objects(copy=False)
     # colour rows by bgc class
     class_set = set(bgc_classes.keys())
     labels = [bgc_classes[bgc][0] if bgc in class_set else 'None' for bgc
@@ -875,6 +885,9 @@ def bgc_class_heatmap(bgc_with_topic, bgc_classes, topic_num, outfolder,
     s_labels = ['None'] + s_labels
     row_labs = pd.DataFrame(labels, index=bgcs, columns=['BGC classes'])
     row_colours = row_labs.iloc[class_i, 0].map(lut)  # map colour to a label
+
+    assert not df.isnull().values.any() # DEBUG
+    assert np.isfinite(df.values).all() # DEBUG
 
     g = sns.clustermap(df.iloc[class_i, :], cmap='nipy_spectral',
                        row_colors=row_colours, linewidths=0, metric=metric,
@@ -958,5 +971,5 @@ def plot_convergence(logfile, iterations, outfile):
         # plt.show
         plt.close()
     else:
-        print("\n  convergence of model could not be plot; likelihood not in"
+        logger.error("convergence of model could not be plot; likelihood not in"
               " log file")

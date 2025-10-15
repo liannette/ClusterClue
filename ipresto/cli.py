@@ -1,7 +1,7 @@
 import sys
 import argparse
+import logging
 from multiprocessing import cpu_count
-
 from ipresto.pipeline import IprestoPipeline
 
 
@@ -304,6 +304,14 @@ def get_commands():
     return args
 
 
+def setup_logging(verbose=False):
+    level = logging.DEBUG if verbose else logging.INFO
+    logging.basicConfig(
+        level=level,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+
+
 def main():
     """
     Main function to execute the iPRESTO pipeline.
@@ -317,13 +325,13 @@ def main():
     Returns:
     None
     """
-    # Get the command line arguments
     cmd = get_commands()
+    setup_logging(verbose=cmd.verbose)
 
-    # Print the command line arguments if verbose
-    if cmd.verbose:
-        print("Command:", " ".join(sys.argv))
-        print(cmd)
+    logger = logging.getLogger(__name__)
+
+    logger.info("Command: %s", " ".join(sys.argv))
+    logger.info("Parsed commands: %s", cmd)
 
     # Execute the main pipeline with provided arguments
     IprestoPipeline().run(

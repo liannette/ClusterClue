@@ -1,8 +1,11 @@
+import logging
 from collections import OrderedDict
 from multiprocessing import Pool
 from functools import partial
 from Bio import SeqIO
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 def write_gbk_paths_file(gbks_dir_path, out_file_path):
@@ -43,8 +46,7 @@ def convert_gbk2fasta(
             if feature.type == "protocluster":
                 contig_edge = feature.qualifiers.get("contig_edge")[0]
                 if contig_edge == "True":
-                    if verbose:
-                        print(f"  excluding {bgc_name}: contig edge")
+                    logger.debug(f"  excluding {bgc_name}: contig edge")
                     return "filtered"
                 break
 
@@ -131,7 +133,7 @@ def convert_gbk2fasta_wrapper(
         return status
     # handle errors
     except Exception as e:
-        print(f"  Unexpected error processing {gbk_file_path.name}: {e}")
+        logger.error(f"  Unexpected error processing {gbk_file_path.name}: {e}")
         return "failed"
 
 
@@ -157,8 +159,7 @@ def process_gbks(
     Returns:
         fastas_file_paths (list of str): List of all fasta files.
     """
-    if verbose:
-        print("\nProcessing gbk files into fasta files...")
+    logger.info("Processing gbk files into fasta files...")
 
     gbk_file_paths = list(Path(gbks_dir_path).glob("*.gbk"))
 
@@ -180,27 +181,26 @@ def process_gbks(
         results = pool.map(process_func, gbk_file_paths)
         
     # Print summary of processing
-    if verbose:
-        status_counts = {
-            status: results.count(status)
-            for status in ["converted", "existed", "excluded", "failed", "filtered"]
-        }
-        n_converted = status_counts["converted"]
-        n_existed = status_counts["existed"]
-        n_excluded = status_counts["excluded"]
-        n_failed = status_counts["failed"]
-        n_filtered = status_counts["filtered"]
+    status_counts = {
+        status: results.count(status)
+        for status in ["converted", "existed", "excluded", "failed", "filtered"]
+    }
+    n_converted = status_counts["converted"]
+    n_existed = status_counts["existed"]
+    n_excluded = status_counts["excluded"]
+    n_failed = status_counts["failed"]
+    n_filtered = status_counts["filtered"]
 
-        print(f"\nProcessed {len(gbk_file_paths)} gbk files:")
-        if n_existed > 0:
-            print(f" - {n_existed} fasta files already existed in the output folder")
-        if n_converted > 0:
-            print(f" - {n_converted} gbk files were converted to fasta files")
-        if n_excluded > 0:
-            print(
-                f" - {n_excluded} gbk files were excluded due to the file name containing '{' or '.join(exclude_name)}'"
-            )
-        if n_filtered > 0:
-            print(f" - {n_filtered} gbk files were excluded due to being at contig edges")
-        if n_failed > 0:
-            print(f" - {n_failed} gbk files failed be converted to fasta files")
+    logger.info(f"Processed {len(gbk_file_paths)} gbk files:")
+    if n_existed > 0:
+        logger.info(f" - {n_existed} fasta files already existed in the output folder")
+    if n_converted > 0:
+        logger.info(f" - {n_converted} gbk files were converted to fasta files")
+    if n_excluded > 0:
+        logger.info(
+            f" - {n_excluded} gbk files were excluded due to the file name containing '{' or '.join(exclude_name)}'"
+        )
+    if n_filtered > 0:
+        logger.info(f" - {n_filtered} gbk files were excluded due to being at contig edges")
+    if n_failed > 0:
+        logger.info(f" - {n_failed} gbk files failed to be converted to fasta files")

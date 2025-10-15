@@ -1,10 +1,12 @@
 import time
+import logging
 from pathlib import Path
 
 from ipresto.preprocess.orchestrator import PreprocessOrchestrator
 from ipresto.presto_stat.orchestrator import StatOrchestrator
 from ipresto.presto_top.orchestrator import TopOrchestrator
 
+logger = logging.getLogger(__name__)
 
 class IprestoPipeline:
     def run(
@@ -51,6 +53,7 @@ class IprestoPipeline:
         out_dir_path.mkdir(parents=True, exist_ok=True)
 
         # Step 1: Preprocessing clusters
+        logger.info("=== Preprocessing clusters ===")
         preprocess_dir_path = out_dir_path / "preprocess"
         clusters_file_path = PreprocessOrchestrator().run(
             preprocess_dir_path,
@@ -72,8 +75,7 @@ class IprestoPipeline:
 
         # Step 2: Statistical subcluster detection (PRESTO-STAT)
         if run_stat:
-            if verbose:
-                print("\n=== PRESTO-STAT: statistical subcluster detection ===")
+            logger.info("=== PRESTO-STAT: statistical subcluster detection ===")
             stat_dir_path = out_dir_path / "stat_subclusters"
             StatOrchestrator().run(
                 stat_dir_path,
@@ -88,8 +90,7 @@ class IprestoPipeline:
 
         # Step 3: Topic modelling for ubcluster motif detection (PRESTO-TOP)
         if run_top:
-            if verbose:
-                print("\n=== PRESTO-TOP: subcluster motif detection using topic modelling ===")
+            logger.info("=== PRESTO-TOP: subcluster motif detection using topic modelling ===")
             top_dir_path = out_dir_path / "top_subclusters"
             TopOrchestrator().run(
                 top_dir_path,
@@ -112,13 +113,12 @@ class IprestoPipeline:
 
         # if visualize:
         #     if verbose:
-        #         print("=== Visualizations ===")
+        #         logger.info("=== Visualizations ===")
         #     plot_histogram(load_data(preprocessed_data_path), output_path="histogram.png")
         #     plot_comparison(results, output_path="comparison.png")
 
         end_time = time.time()
-        if verbose:
-            elapsed_time = end_time - start_time
-            hours, remainder = divmod(elapsed_time, 3600)
-            minutes, seconds = divmod(remainder, 60)
-            print(f"\nTotal runtime: {int(hours)} hours and {int(minutes)} minutes")
+        elapsed_time = end_time - start_time
+        hours, remainder = divmod(elapsed_time, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        logger.info("Total runtime: %d hours and %d minutes", int(hours), int(minutes))

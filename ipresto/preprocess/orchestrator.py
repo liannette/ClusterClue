@@ -1,7 +1,7 @@
 import random
+import logging
 from pathlib import Path
 from typing import List, Optional
-
 from ipresto.preprocess.utils import (
     count_gene_occurrences,
     read_clusters_and_remove_empty,
@@ -12,6 +12,8 @@ from ipresto.preprocess.tokenize.orchestrator import TokenizeOrchestrator
 from ipresto.preprocess.domain_filtering import perform_domain_filtering
 from ipresto.preprocess.similarity_filtering import filter_similar_clusters
 from ipresto.preprocess.infrequent_genes import remove_infrequent_genes
+
+logger = logging.getLogger(__name__)
 
 
 class PreprocessOrchestrator:
@@ -68,16 +70,9 @@ class PreprocessOrchestrator:
         clusters_file_path = out_dir / "clusters_all_domains.csv"
         gene_counts_file_path = out_dir / "clusters_all_domains_gene_counts.txt"
         if clusters_file_path.is_file():
-            if verbose:
-                print(
-                    "\nSkipping tokenisation step, because the file"
-                    f" already exists: {clusters_file_path}"
-                )
+            logger.info(f"Skipping tokenisation step, because the file already exists: {clusters_file_path}")
         elif existing_clusterfile:
-            if verbose:
-                print(
-                    f"\nUsing provided file of tokenized BGCs: {existing_clusterfile}."
-                )
+            logger.info(f"Using provided file of tokenized BGCs: {existing_clusterfile}.")
             clusters = read_clusters_and_remove_empty(existing_clusterfile, min_genes, verbose)
             write_clusters(clusters, clusters_file_path)
             write_gene_counts(count_gene_occurrences(clusters), gene_counts_file_path)
@@ -97,15 +92,11 @@ class PreprocessOrchestrator:
 
         # Step 2: Filter non-biosynthetic protein domains
         if domain_filtering is False:
-            if verbose:
-                print("\nSkipping domain filtering, because it has been turned off.")
+            logger.info("Skipping domain filtering, because it has been turned off.")
         else:
             out_file_path = out_dir / "clusters_biosyn_domains.csv"
             if out_file_path.is_file():
-                if verbose:
-                    print(
-                        f"\nSkipping domain filtering, because the file already exists: {out_file_path}"
-                    )
+                logger.info(f"Skipping domain filtering, because the file already exists: {out_file_path}")
             else:
                 domain_filtering_file_path = (
                     Path(__file__).parent.parent.parent
@@ -126,17 +117,11 @@ class PreprocessOrchestrator:
 
         # Step 3: Clean clusters for generation of nes STAT/TOP models
         if similarity_filtering_flag is False:
-            if verbose:
-                print(
-                    "\nSkipping similarity filtering, because it has been turned off."
-                )
+            logger.info("Skipping similarity filtering, because it has been turned off.")
         else:
             out_file_path = out_dir / "clusters_deduplicated.csv"
             if out_file_path.is_file():
-                if verbose:
-                    print(
-                        f"\nSkipping similarity filtering, because the file already exists: {out_file_path}"
-                    )
+                logger.info(f"Skipping similarity filtering, because the file already exists: {out_file_path}")
             else:
                 counts_file_path = out_dir / "clusters_deduplicated_gene_counts.txt"
                 representatives_file_path = out_dir / "representative_clusters.txt"
@@ -154,17 +139,11 @@ class PreprocessOrchestrator:
             clusters_file_path = out_file_path
 
         if remove_infrequent_genes_flag is False:
-            if verbose:
-                print(
-                    "\nSkipping infrequent gene removal, because it has been turned off."
-                )
+            logger.info("Skipping infrequent gene removal, because it has been turned off.")
         else:
             out_file_path = out_dir / "clusters_gene_filtered.csv"
             if out_file_path.is_file():
-                if verbose:
-                    print(
-                        f"\nSkipping infrequent gene removal, because the file already exists: {out_file_path}"
-                    )
+                logger.info(f"Skipping infrequent gene removal, because the file already exists: {out_file_path}")
             else:
                 counts_file_path = out_dir / "clusters_gene_filtered_gene_counts.txt"
                 clusters_file_path = remove_infrequent_genes(

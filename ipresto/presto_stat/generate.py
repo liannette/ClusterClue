@@ -1,3 +1,5 @@
+import logging
+import networkx as nx
 from collections import Counter, defaultdict, OrderedDict
 from itertools import product
 from multiprocessing import Pool
@@ -5,10 +7,10 @@ from functools import partial
 from statsmodels.stats.multitest import multipletests
 from sympy import binomial as ncr
 from math import floor, log10
-import networkx as nx
-
 from ipresto.presto_stat.detect import detect_modules_in_bgcs, get_bgcs_per_module
 from ipresto.presto_stat.stat_module import StatModule
+
+logger = logging.getLogger(__name__)
 
 
 def makehash():
@@ -109,8 +111,7 @@ def count_interactions(clusdict, verbose):
     coloc counts:
         { dom1:{ count:x,N1:y,B1:{dom2:v,dom3:w } } }
     """
-    if verbose:
-        print("\nCounting colocalisation and adjacency interactions")
+    logger.info("Counting colocalisation and adjacency interactions")
     all_doms = {v for val in clusdict.values() for v in val}
     if ("-",) in all_doms:
         all_doms.remove(("-",))
@@ -203,8 +204,7 @@ def calc_adj_pval_wrapper(count_dict, clusdict, cores, verbose):
     cores: int, amount of cores to use
     verbose: bool, if True print additional information
     """
-    if verbose:
-        print("Calculating adjacency p-values")
+    logger.info("Calculating adjacency p-values")
     N = sum([len(values) for values in clusdict.values()])
     pool = Pool(cores, maxtasksperchild=5)
     pvals_ori = pool.map(
@@ -220,10 +220,9 @@ def calc_adj_pval_wrapper(count_dict, clusdict, cores, verbose):
     check_c = Counter(check_ps)
     pvals = [p for p in pvals_ori if check_c[(p[0], p[1])] == 2]
     if not len(pvals) == len(pvals_ori):
-        if verbose:
-            p_excl = [p for p in pvals if check_c[(p[0], p[1])] != 2]
-            print("  error with domain pairs {}".format(", ".join(p_excl)))
-            print("  these are excluded")
+        p_excl = [p for p in pvals if check_c[(p[0], p[1])] != 2]
+        logger.info("  error with domain pairs {}".format(", ".join(p_excl)))
+        logger.info("  these are excluded")
     # Benjamini-Yekutieli multiple testing correction
     pvals_adj = multipletests(list(zip(*pvals))[2], method="fdr_by")[1]
     # adding adjusted pvals and choosing max
@@ -275,7 +274,7 @@ def calc_coloc_pval_wrapper(count_dict, clusdict, cores, verbose):
     cores: int, amount of cores to use
     verbose: bool, if True print additional information
     """
-    print("Calculating colocalisation p-values")
+    logger.info("Calculating colocalisation p-values")
     N = sum([len(remove_dupl_doms(values)) for values in clusdict.values()])
     pool = Pool(cores, maxtasksperchild=1)
     pvals_ori = pool.map(
@@ -291,10 +290,9 @@ def calc_coloc_pval_wrapper(count_dict, clusdict, cores, verbose):
     check_c = Counter(check_ps)
     pvals = [p for p in pvals_ori if check_c[(p[0], p[1])] == 2]
     if not len(pvals) == len(pvals_ori):
-        if verbose:
-            p_excl = [p for p in pvals if check_c[(p[0], p[1])] != 2]
-            print("  error with domain pairs {}".format(", ".join(p_excl)))
-            print("  these are excluded")
+        p_excl = [p for p in pvals if check_c[(p[0], p[1])] != 2]
+        logger.info("  error with domain pairs {}".format(", ".join(p_excl)))
+        logger.info("  these are excluded")
     # Benjamini-Yekutieli multiple testing correction
     pvals_adj = multipletests(list(zip(*pvals))[2], method="fdr_by")[1]
     # adding adjusted pvals and choosing max
@@ -334,10 +332,9 @@ def generate_graph(edges, verbose):
     """
     g = nx.Graph()
     g.add_edges_from(edges)
-    if verbose:
-        print("\nGenerated graph with:")
-        print(" {} nodes".format(g.number_of_nodes()))
-        print(" {} edges".format(g.number_of_edges()))
+    logger.info("\nGenerated graph with:")
+    logger.info(" {} nodes".format(g.number_of_nodes()))
+    logger.info(" {} edges".format(g.number_of_edges()))
     return g
 
 
@@ -385,21 +382,18 @@ def identify_significant_modules(edges, max_pval, cores, verbose):
     Returns:
         dict: A dictionary where keys are module IDs and values are StatModule objects.
     """
-    if verbose:
-        print(
+    logger.info(
             f"\nIdentifying subcluster modules applying a maximum interaction "
             f"p-value cutoff of {max_pval}"
         )
 
     significant_edges = [e for e in edges if e[2]["pval"] <= max_pval]
-    if verbose:
-        print(f"  {len(significant_edges)} significant gene pair interactions")
+    logger.info(f"  {len(significant_edges)} significant gene pair interactions")
 
     pval_cutoffs = {pv["pval"] for pv in list(zip(*significant_edges))[2]}
     if len(pval_cutoffs) > 100000:  # reduce the number of pvals to loop through
         pval_cutoffs = {round_to_n(x, 3) for x in pval_cutoffs}
-    if verbose:
-        print(f"  looping through {len(pval_cutoffs)} p-value cutoffs")
+    logger.info(f"  looping through {len(pval_cutoffs)} p-value cutoffs")
 
     pool = Pool(cores, maxtasksperchild=10)
     results = pool.imap(
@@ -426,8 +420,7 @@ def identify_significant_modules(edges, max_pval, cores, verbose):
                 strictest_pval = min(modules[mod].strictest_pval, pval_cutoff)
                 modules[mod].strictest_pval = strictest_pval
 
-    if verbose:
-        print(f"Identified {len(modules)} significant modules.")
+    logger.info(f"Identified {len(modules)} significant modules.")
 
     return {mod.module_id: mod for mod in modules.values()}
 
@@ -461,25 +454,25 @@ def generate_stat_modules(
     modules = identify_significant_modules(p_values, max_pval, cores, verbose)
 
     # remove modules that do not occur in the bgc dataset
-    if verbose:
-        print("\nRemoving modules that do not occur at least twice in the BGC dataset")
+    logger.info("\nRemoving modules that do not occur at least twice in the BGC dataset")
     min_occurence = 2
     existing_modules = filter_infrequent_modules(
         modules, bgcs, min_occurence, cores
     )
-    if verbose:
-        n_removed = len(modules) - len(existing_modules)
-        percent_removed = n_removed / len(modules) * 100
-        print(f"Removed {n_removed} ({round(percent_removed, 2)}%) modules.")
+
+    # report how many modules were removed
+    n_removed = len(modules) - len(existing_modules)
+    percent_removed = n_removed / len(modules) * 100
+    logger.info(f"Removed {n_removed} ({round(percent_removed, 2)}%) modules.")
 
     # remove modules that are contained by another one, occuring the same amount in the dataset
-    if verbose:
-        print("\nRemoving modules that are contained by another one")
+    logger.info("\nRemoving modules that are contained by another one")
     filtered_modules = filter_redundant_modules(existing_modules, bgcs, cores)
-    if verbose:
-        n_removed = len(existing_modules) - len(filtered_modules)
-        percent_removed = n_removed / len(modules) * 100
-        print(f"Removed {n_removed} ({round(percent_removed, 2)}%) modules.")
+
+    # report how many modules were removed
+    n_removed = len(existing_modules) - len(filtered_modules)
+    percent_removed = n_removed / len(modules) * 100
+    logger.info(f"Removed {n_removed} ({round(percent_removed, 2)}%) modules.")
 
     return filtered_modules
 

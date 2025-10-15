@@ -1,14 +1,16 @@
+import logging
 from collections import Counter
 from multiprocessing import Pool
 from Bio import SearchIO
 from pathlib import Path
 from functools import partial
-
 from ipresto.preprocess.utils import (
     count_non_empty_genes,
     format_cluster_to_string,
     write_gene_counts,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def calculate_overlap(tup1, tup2):
@@ -160,8 +162,7 @@ def process_domtable_with_error_handling(
     try:
         return process_domtable(domtable_path, max_domain_overlap)
     except Exception as e:
-        if verbose:
-            print(f"  Error while processing {Path(domtable_path).stem}: {e}")
+        logger.error(f"Error while processing {Path(domtable_path).stem}: {e}")
         return None
 
 
@@ -185,8 +186,7 @@ def filter_non_empty_genes(clusters, min_genes, verbose):
 
         if n_genes_with_domains >= min_genes:
             filtered_clusters.append(cluster)
-        elif verbose:
-            print(f"  excluding {cluster_id}, only {n_genes_with_domains} genes with domain hits (min {min_genes})")
+        logger.debug(f"Excluding {cluster_id}, only {n_genes_with_domains} genes with domain hits (min {min_genes})")
 
     return sorted(filtered_clusters, key=lambda x: x[0])
 
@@ -255,9 +255,8 @@ def process_domtables(
         - The function counts the number of genes in each cluster and writes this information
           to a separate file with the same name as the cluster file, but with "_gene_counts.txt" appended.
     """
-    if verbose:
-        print("\nParsing domtables into tokenized clusters...")
-        
+    logger.info("Parsing domtables into tokenized clusters...")
+
     domtable_paths = list(Path(domtables_dir_path).glob("*.domtable"))
 
     # Process each domtable in parallel
@@ -297,11 +296,10 @@ def process_domtables(
     n_converted = len(filtered_clusters)
     n_excluded = len(domtable_paths) - len(filtered_clusters) - n_failed
 
-    if verbose:
-        print(f"\nProcessed {len(domtable_paths)} domtables:")
-        if n_converted > 0:
-            print(f" - {n_converted} domtables were converted to tokenised clusters.")
-        if n_excluded > 0:
-            print(f" - {n_excluded} excluded for having < {min_genes} genes with domain hits")
-        if n_failed > 0:
-            print(f" - {n_failed} domtables failed to be converted to tokenised clusters")
+    logger.info(f"Processed {len(domtable_paths)} domtables:")
+    if n_converted > 0:
+        logger.info(f" - {n_converted} domtables were converted to tokenised clusters.")
+    if n_excluded > 0:
+        logger.info(f" - {n_excluded} excluded for having < {min_genes} genes with domain hits")
+    if n_failed > 0:
+        logger.info(f" - {n_failed} domtables failed to be converted to tokenised clusters")

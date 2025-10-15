@@ -1,8 +1,10 @@
 import csv
+import logging
 from collections import OrderedDict
 from ipresto.preprocess.utils import count_non_empty_genes
 from ipresto.presto_stat.stat_module import StatModule
 
+logger = logging.getLogger(__name__)
 
 #TODO: make sure that the outfiles are sorted: modules_per_bgc, stat_module_k_families
 
@@ -28,7 +30,7 @@ def read_clusterfile(clusterfile, m_gens, verbose):
     - The function also prints the number of clusters excluded due to having fewer genes than `m_gens`.
     - Domains represented by '-' are not counted in the gene count.
     """
-    print(f"\nReading {clusterfile}")
+    logger.info(f"Reading {clusterfile}")
     with open(clusterfile, "r") as inf:
         clusters = OrderedDict()
         for line in inf:
@@ -39,13 +41,13 @@ def read_clusterfile(clusterfile, m_gens, verbose):
             if clus not in clusters.keys():
                 clusters[clus] = g_doms
             else:
-                print(f"Warning: Duplicate cluster ID {clus}.")
+                logger.warning(f"Duplicate cluster ID {clus}.")
 
     # remove clusters with too few genes
     if m_gens > 0:
         clusters = remove_empty_clusters(clusters, m_gens, verbose)
 
-    print(f"Read {len(clusters)} clusters")
+    logger.info(f"Read {len(clusters)} clusters")
     return clusters
 
 
@@ -67,7 +69,7 @@ def remove_empty_clusters(clusters, min_genes, verbose):
         n_genes = count_non_empty_genes(genes)
         if n_genes < min_genes:
             if verbose:
-                print(
+                logger.debug(
                     f"  Excluding {clus}: contains only {n_genes} genes with "
                     f"domain hits."
                 )
@@ -77,7 +79,7 @@ def remove_empty_clusters(clusters, min_genes, verbose):
         del clusters[clus]
 
     if to_delete:
-        print(
+        logger.info(
             f"{len(to_delete)} clusters excluded for having less than "
             f"{min_genes} genes with domain hits (minimum required: {min_genes})."
         )
@@ -125,7 +127,7 @@ def write_stat_modules(modules: dict, file_path: str):
     and then writes each module's values in tab-separated format.
     """
     if not modules:
-        print("No modules to write.")
+        logger.warning("No modules to write.")
         return
 
     header = list(modules.values())[0].to_dict().keys()
@@ -156,7 +158,7 @@ def read_stat_modules(file_path):
             strictest_pval = float(row["strictest_pval"])
             tokenised_genes = string_to_tokenized_genes(row["tokenised_genes"])
             if module_id in modules:
-                print(f"Warning: Duplicate module ID {module_id}. Keeping the first one.")
+                logger.warning(f"Duplicate module ID {module_id}. Keeping the first one.")
                 continue
             module = StatModule(
                 module_id=module_id,
@@ -164,7 +166,7 @@ def read_stat_modules(file_path):
                 tokenised_genes=tokenised_genes,
             )
             modules[module_id] = module
-        print(f"Read {len(modules)} STAT modules.")
+        logger.info(f"Read {len(modules)} STAT modules.")
         return modules
 
 

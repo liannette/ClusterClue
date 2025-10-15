@@ -1,9 +1,12 @@
+import logging
 from multiprocessing import Pool
 from functools import partial
 from pathlib import Path
 from pyhmmer.hmmer import hmmscan
 from pyhmmer.plan7 import HMMFile
 from pyhmmer.easel import SequenceFile
+
+logger = logging.getLogger(__name__)
 
 
 def run_hmmscan(fasta_file_path, hmm_file_path, out_file_path):
@@ -44,8 +47,7 @@ def run_hmmscan_wrapper(fasta_file_path, hmm_file_path, out_folder, verbose):
         return "converted"
     # handle errors
     except Exception as e:
-        if verbose:
-            print(f"  Unexpected error processing {fasta_file_path.name}: {e}")
+        logger.error(f"Unexpected error processing {fasta_file_path.name}: {e}")
         return "failed"
 
 
@@ -62,8 +64,7 @@ def process_fastas(fasta_dir_path, domtables_dir_path, hmm_file_path, cores, ver
     Returns:
         None
     """
-    if verbose:
-        print("\nProcessing fastas with hmmscan to generate domtables...")
+    logger.info("Processing fastas with hmmscan to generate domtables...")
 
     fasta_file_paths = list(Path(fasta_dir_path).glob("*.fasta"))
 
@@ -78,18 +79,17 @@ def process_fastas(fasta_dir_path, domtables_dir_path, hmm_file_path, cores, ver
         results = pool.map(process_func, fasta_file_paths)
 
     # Print summary of processing
-    if verbose:
-        status_counts = {
-            status: results.count(status) for status in ["converted", "existed", "failed"]
-        }
-        n_converted = status_counts["converted"]
-        n_existed = status_counts["existed"]
-        n_failed = status_counts["failed"]
+    status_counts = {
+        status: results.count(status) for status in ["converted", "existed", "failed"]
+    }
+    n_converted = status_counts["converted"]
+    n_existed = status_counts["existed"]
+    n_failed = status_counts["failed"]
 
-        print(f"\nProcessed {len(fasta_file_paths)} fasta files:")
-        if n_failed > 0:
-            print(f" - {n_failed} fasta files failed to be converted into domtables")
-        if n_existed > 0:
-            print(f" - {n_existed} domtables already existed in the output folder")
-        if n_converted > 0:
-            print(f" - {n_converted} fasta files were converted into domtables")
+    logger.info(f"Processed {len(fasta_file_paths)} fasta files:")
+    if n_failed > 0:
+        logger.info(f" - {n_failed} fasta files failed to be converted into domtables")
+    if n_existed > 0:
+        logger.info(f" - {n_existed} domtables already existed in the output folder")
+    if n_converted > 0:
+        logger.info(f" - {n_converted} fasta files were converted into domtables")
