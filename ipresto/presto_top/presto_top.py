@@ -35,6 +35,7 @@ from gensim.corpora.mmcorpus import MmCorpus
 from math import ceil
 from numpy import sqrt
 from operator import itemgetter
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -62,23 +63,28 @@ def run_lda(domlist, no_below, no_above, num_topics, cores, outfolder,
     beta: str, beta parameter for lda in string format, either symmetric,
         auto or an integer.
     """
-    model = os.path.join(outfolder, 'lda_model')
+    outfolder = Path(outfolder)
+    model_filename = 'lda_model' 
+    model_filepath = outfolder / model_filename
+
+    #model = os.path.join(outfolder, 'lda_model')
+
     # save the token ids the model will be build on.
-    dict_file = model + '.dict'
-    if not os.path.isfile(dict_file):
+    dict_filepath = outfolder / f'{model_filename}.dict'
+    if not dict_filepath.exists():
         dict_lda = Dictionary(domlist)
         dict_lda.filter_extremes(no_below=no_below, no_above=no_above)
-        dict_lda.save(dict_file)
+        dict_lda.save(dict_filepath)
     else:
         logger.info("Loaded existing dict_file with words")
-        dict_lda = Dictionary.load(dict_file)
+        dict_lda = Dictionary.load(dict_filepath)
     logger.info('Constructing LDA model with {} BGCs and:'.format(len(domlist)),
           dict_lda)
     
     corpus_bow = [dict_lda.doc2bow(doms) for doms in domlist]
-    corpus_file = model + 'mm'
-    if not os.path.isfile(corpus_file):
-        MmCorpus.serialize(corpus_file, corpus_bow)
+    corpus_filepath = outfolder / f'{model_filename}mm'
+    if not corpus_filepath.exists():
+        MmCorpus.serialize(corpus_filepath, corpus_bow)
 
     # to allow for x iterations of chunksize y
     passes = ceil(iters * chnksize / len(domlist))
@@ -94,17 +100,17 @@ def run_lda(domlist, no_below, no_above, num_topics, cores, outfolder,
         else:
             beta = int(beta)
 
-    if not os.path.exists(model):
+    if not model_filepath.exists():
         lda = LdaMulticore(
             corpus=corpus_bow, num_topics=num_topics,
             id2word=dict_lda, workers=cores, per_word_topics=True,
             chunksize=chnksize, iterations=iters, gamma_threshold=0.0001,
             offset=offst, passes=passes, dtype=np.float64, alpha=alpha,
             eta=beta)
-        lda.save(model)
+        lda.save(model_filepath)
     else:
         logger.info('Loaded existing LDA model')
-        lda = LdaMulticore.load(model)
+        lda = LdaMulticore.load(model_filepath)
         if update_model:
             # update the model. to be functional the input should be stationary
             # (no topic drift in new documents)
@@ -112,12 +118,8 @@ def run_lda(domlist, no_below, no_above, num_topics, cores, outfolder,
             # for the multicore model new parameters cannot be added, the
             # parameters from the existing model will be used to update
             lda.update(corpus_bow, chunks_as_numpy=True)
-            lda.save(model)
+            lda.save(model_filepath)
 
-    # cm = CoherenceModel(model=lda, corpus=corpus_bow, dictionary=dict_lda,\
-    # coherence='c_v', texts=domlist)
-    # coherence = cm.get_coherence()
-    # print('Coherence: {}, num_topics: {}'.format(coherence, num_topics))
     if ldavis:
         visname = os.path.join(outfolder, 'lda_method-tsne.html')
         logger.info('Running pyLDAvis for visualisation')
