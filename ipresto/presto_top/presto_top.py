@@ -200,7 +200,7 @@ def process_lda(lda, dict_lda, corpus_bow, feat_num, bgc_dict, min_f_score,
     bgcl_dict = {bgc: sum(1 for g in genes if not g == '-')
                  for bgc, genes in bgc_dict.items()}
     bgc2topic = link_bgc_topics(lda, dict_lda, corpus_bow, bgcs, outfolder,
-                                bgcl_dict, feat_scores, amplif=amplif)
+                                bgcl_dict, feat_scores, plot, amplif=amplif)
     link_genes2topic(lda, dict_lda, outfolder)
     t_matches = retrieve_topic_matches(bgc2topic, feat_scores)
     top_match_file = Path(outfolder) / 'matches_per_topic.txt'
@@ -305,7 +305,7 @@ def select_number_of_features(lda_topics, outfolder, min_f_score, feat_num, tran
 
 
 def link_bgc_topics(lda, dict_lda, corpus_bow, bgcs, outfolder, bgcl_dict,
-                    feat_scores, amplif=False):
+                    feat_scores, plot, amplif=False):
     """Returns dict of {bgc:{topic_num:[prob,[(gene,prob)],overlap_score]}}
 
 
