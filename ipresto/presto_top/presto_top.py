@@ -25,7 +25,6 @@ import pandas as pd
 import pyLDAvis
 import pyLDAvis.gensim
 import re
-import scipy.cluster.hierarchy as sch
 import seaborn as sns
 from collections import Counter, defaultdict
 from gensim.models.ldamulticore import LdaMulticore
@@ -75,7 +74,7 @@ def run_lda(domlist, no_below, no_above, num_topics, cores, outfolder,
         dict_lda.save(dict_filepath)
     else:
         logger.info("Loaded existing dict_file with words")
-        dict_lda = Dictionary.load(dict_filepath)
+        dict_lda = Dictionary.load(str(dict_filepath))
     logger.info('Constructing LDA model with {} BGCs and:'.format(len(domlist)),
           dict_lda)
     
@@ -105,10 +104,10 @@ def run_lda(domlist, no_below, no_above, num_topics, cores, outfolder,
             chunksize=chnksize, iterations=iters, gamma_threshold=0.0001,
             offset=offst, passes=passes, dtype=np.float64, alpha=alpha,
             eta=beta)
-        lda.save(model_filepath)
+        lda.save(str(model_filepath))
     else:
         logger.info('Loaded existing LDA model')
-        lda = LdaMulticore.load(model_filepath)
+        lda = LdaMulticore.load(str(model_filepath))
         if update_model:
             # update the model. to be functional the input should be stationary
             # (no topic drift in new documents)
@@ -116,27 +115,27 @@ def run_lda(domlist, no_below, no_above, num_topics, cores, outfolder,
             # for the multicore model new parameters cannot be added, the
             # parameters from the existing model will be used to update
             lda.update(corpus_bow, chunks_as_numpy=True)
-            lda.save(model_filepath)
+            lda.save(str(model_filepath))
 
     if ldavis:
-        visname = Path(outfolder) / 'lda_method-tsne.html'
+        vis_filepath = Path(outfolder) / 'lda_method-tsne.html'
         logger.info('Running pyLDAvis for visualisation')
         vis = pyLDAvis.gensim.prepare(
             lda, corpus_bow, dict_lda, sort_topics=False, mds='tsne')
-        logger.info('  saving visualisation with t-sne to html')
+        logger.info(f'Saving visualisation with t-sne: {str(vis_filepath)}')
         try:
-            pyLDAvis.save_html(vis, visname)
+            pyLDAvis.save_html(vis, str(vis_filepath))
         except TypeError as e:
-            logger.error('  saving visualisation failed with: {}'.format(e))
+            logger.error(f'Saving visualisation failed with: {e}')
     return lda, dict_lda, corpus_bow
 
 
-def run_lda_from_existing(existing_model, domlist, outfolder,
+def run_lda_from_existing(model_filepath, domlist, outfolder,
                           no_below=1, no_above=0.5):
     """
     Returns existing LDA model with the Dictionary and the corpus.
 
-    existing_model: str, filepath to lda model
+    model_filepath: str, filepath to lda model
     domlist: list of list of str, list of the bgc domain-combinations
     outfolder: str, filepath
     no_below: int, domain-combinations that occur in less than no_below
@@ -144,25 +143,19 @@ def run_lda_from_existing(existing_model, domlist, outfolder,
     no_above: float, remove domain-combinations that occur in more than
         no_above fraction of the dataset
     """
-    model = existing_model
     # load the token ids the model is build on.
-    dict_file = existing_model + '.dict'
-    dict_lda = Dictionary.load(dict_file)
+    dict_filepath = str(model_filepath) + '.dict'
+    dict_lda = Dictionary.load(dict_filepath)
 
     corpus_bow = [dict_lda.doc2bow(doms) for doms in domlist]
     # save current corpus
-    corpus_file = Path(outfolder) / 'current_corpus.mm'
-    if not os.path.isfile(corpus_file):
-        MmCorpus.serialize(corpus_file, corpus_bow)
+    corpus_filepath = Path(outfolder) / 'current_corpus.mm'
+    if not corpus_filepath.exists():
+        MmCorpus.serialize(str(corpus_filepath), corpus_bow)
 
-    lda = LdaMulticore.load(existing_model)
+    lda = LdaMulticore.load(str(model_filepath))
     logger.info('Loaded existing LDA model')
-    logger.info('Applying existing LDA model on {} BGCs with'.format(len(domlist)),
-          dict_lda)
-    # cm = CoherenceModel(model=lda, corpus=corpus_bow, dictionary=dict_lda,\
-    # coherence='c_v', texts=domlist)
-    # coherence = cm.get_coherence()
-    # logger.info('Coherence: {}, num_topics: {}'.format(coherence, num_topics))
+    logger.info(f'Applying existing LDA model on {len(domlist)} BGCs with {dict_lda}')
 
     return lda, dict_lda, corpus_bow
 
@@ -190,7 +183,7 @@ def process_lda(lda, dict_lda, corpus_bow, feat_num, bgc_dict, min_f_score,
     topic_num = len(lda_topics)
     # get the topic names from the lda html visualisation
     ldahtml = Path(outfolder) / 'lda.html'
-    if os.path.isfile(ldahtml):
+    if ldahtml.exists():
         with open(ldahtml, 'r') as inf:
             for line in inf:
                 if line.startswith('var lda'):
@@ -248,14 +241,6 @@ def process_lda(lda, dict_lda, corpus_bow, feat_num, bgc_dict, min_f_score,
                            bgc_with_matches]
         topics_per_bgc_counts = Counter(topics_per_bgc)
         plot_topics_per_bgc(topics_per_bgc_counts, tpb_name)
-
-        if plot:
-            bgc_topic_heatmap(bgc_with_topics, bgc_classes, topic_num,
-                              outfolder, metric='euclidean')
-            bgc_topic_heatmap(bgc_with_topics, bgc_classes, topic_num,
-                              outfolder, metric='correlation')
-            bgc_class_heatmap(bgc_with_topics, bgc_classes, topic_num,
-                              outfolder, metric='correlation')
     else:
         logger.info("Plots about stats could not be made as there were no matches")
 
@@ -315,7 +300,7 @@ def select_number_of_features(lda_topics, outfolder, min_f_score, feat_num, tran
                                                          ','.join(doms),
                                                          ','.join(
                                                              map(str, nums))))
-    logger.info('{} empty topics'.format(len(zero_topics)))
+    logger.info(f'{len(zero_topics)} empty topics')
     return filt_features, feat_scores, zero_topics
 
 
@@ -375,18 +360,18 @@ def link_bgc_topics(lda, dict_lda, corpus_bow, bgcs, outfolder, bgcl_dict,
                     '\n\tlen={}\n\tgenes={}\n'.format(len(info[1]), genes)
                 outf.write(string)
             bgc2topic[bgc] = topd
-    # if plot:
-    # extract length of each bgc vs len of topic in each bgc
-    logger.info('  plotting length of matches vs length of bgcs')
-    lengths = ((bgcl_dict[bgc], len(val[t][1])) for bgc, val in
-               bgc2topic.items() for t in val)
-    len_name = Path(outfolder) / 'len_bgcs_vs_len_topic_match.pdf'
-    plot_topic_matches_lengths(lengths, len_name)
+    if plot:
+        # extract length of each bgc vs len of topic in each bgc
+        lengths = ((bgcl_dict[bgc], len(val[t][1])) for bgc, val in
+                bgc2topic.items() for t in val)
+        len_name = Path(outfolder) / 'len_bgcs_vs_len_topic_match.pdf'
+        logger.info(f'Plotting length of matches vs length of bgcs to {len_name}')
+        plot_topic_matches_lengths(lengths, len_name)
 
-    # count amount of topics per bgc
-    tpb_name = Path(outfolder) / 'topics_per_bgc.pdf'
-    topics_per_bgc = Counter([len(vals) for vals in bgc2topic.values()])
-    plot_topics_per_bgc(topics_per_bgc, tpb_name)
+        # count amount of topics per bgc
+        tpb_name = Path(outfolder) / 'topics_per_bgc.pdf'
+        topics_per_bgc = Counter([len(vals) for vals in bgc2topic.values()])
+        plot_topics_per_bgc(topics_per_bgc, tpb_name)
     return bgc2topic
 
 
@@ -642,7 +627,7 @@ def write_topic_matches(topic_matches, bgc_classes, outname, plot):
     plotlines_1 = pd.DataFrame(columns=sorted(s_b_c))
     # occurence of each topic
     prevl = {t: len(vals) for t, vals in topic_matches.items()}
-    sumfile = outname.split('.txt')[0] + '_summary.txt'
+    sumfile = Path(outname).parent / (Path(outname).stem + '_summary.txt')
     with open(outname, 'w') as outf, open(sumfile, 'w') as sumf:
         sumf.write('Topic\tmatches\tmatches_len>1\tclasses\tclasses_len>1\n')
         for topic, matches in sorted(topic_matches.items()):
@@ -692,10 +677,11 @@ def write_topic_matches(topic_matches, bgc_classes, outname, plot):
                             ), match[2],
                         bgc_classes.get(match[2], ['None'])[0]))
     if plot:
-        bplot_name = os.path.join(os.path.split(outname)[0], 'topic_stats.pdf')
+        bplot_name = Path(outname).parent / 'topic_stats.pdf'
+        logger.info(f'Creating barplot for topic matches: {bplot_name}')
         barplot_topic_stats(plotlines, bplot_name)
-        bplot_name_1 = os.path.join(os.path.split(outname)[0],
-                                    'topic_stats_matches>1.pdf')
+        bplot_name_1 = Path(outname).parent / 'topic_stats_matches>1.pdf'
+        logger.info(f'Creating barplot for topic matches with length > 1: {bplot_name_1}')
         barplot_topic_stats(plotlines_1, bplot_name_1)
     return topic_matches
 
@@ -706,8 +692,8 @@ def barplot_topic_stats(df, outname):
     df: pandas dataframe with    index as topic numbers and columns as classes
     outname: str, filepath
     """
-    logger.info('  making barplot of topic stats')
-    df = df.fillna(0).infer_objects(copy=False)
+    with pd.option_context('future.no_silent_downcasting', True):
+        df = df.fillna(0).infer_objects(copy=False)
     len_no_none = len(df.columns) - 1
     if len(df.columns) > 10:
         cols = sns.cubehelix_palette(len_no_none, start=1.2, rot=2,
@@ -785,139 +771,6 @@ def filter_matches(topic_matches, feat_scores, filt_features, min_t_match,
                     filt_topic_matches[topic].append([match_p, newfeats, bgc,
                                                       overlap_score])
     return filt_topic_matches
-
-
-def bgc_topic_heatmap(bgc_with_topic, bgc_classes, topic_num, outfolder,
-                      metric='euclidean'):
-    """Make a clustered heatmap of bgcs and topics, and optional bgc_classes
-
-    bgc_with_topic: dict of {bgc:[[topic_num,prob,[(gene,prob)]]]}
-    bgc_classes: dict of {bgc:[[class1,class2]]}
-    topic_num: int, number of topics in the model
-
-    """
-    logger.info('Making clustered heatmap, metric: {}'.format(metric))
-    # make pd dataframe from bgc with topic with prob as value for present tpic
-    bgcs, topics = zip(*bgc_with_topic.items())
-    data = [{v[0]: v[1] for v in val} for val in topics]
-    df = pd.DataFrame(data, index=bgcs, columns=list(range(topic_num)))
-    df = df.apply(pd.to_numeric, errors='coerce')
-    df = df.fillna(0).infer_objects(copy=False)
-    # colour rows by bgc class
-    class_set = set(bgc_classes.keys())
-    labels = [bgc_classes[bgc][0] if bgc in class_set else 'None' for bgc
-              in bgcs]
-    s_labels = sorted(set(labels))
-    # get colours
-    if 'None' in s_labels:
-        s_labels.remove("None")
-    if len(s_labels) > 10:
-        lut = dict(zip(s_labels, sns.cubehelix_palette(len(
-            s_labels), start=1.2, rot=2, dark=0.11, light=0.85)))
-    else:
-        lut = dict(zip(s_labels, sns.color_palette()))
-    lut['None'] = 'w'  # make None always white
-    s_labels = ['None'] + s_labels
-    row_labs = pd.DataFrame(labels, index=bgcs, columns=['BGC classes'])
-    row_colours = row_labs['BGC classes'].map(lut)  # map colour to a label
-
-    g = sns.clustermap(df, cmap='nipy_spectral', row_colors=row_colours,
-                       linewidths=0, metric=metric, yticklabels=False,
-                       xticklabels=True,
-                       cbar_kws={'orientation': 'horizontal'}, vmin=0, vmax=1)
-    g.ax_heatmap.set_xticklabels(g.ax_heatmap.get_xmajorticklabels(),
-                                 fontsize=5)
-    # don't show dendrograms
-    g.ax_col_dendrogram.set_visible(False)
-    g.ax_row_dendrogram.set_ylim([0, 0.00001])
-    g.ax_row_dendrogram.set_xlim([0, 0.00001])
-    # make legend for classes
-    for label in s_labels:
-        g.ax_row_dendrogram.bar(0, 0, color=lut[label], label=label,
-                                linewidth=0)
-    g.ax_row_dendrogram.legend(loc="center left", fontsize='small',
-                               title='BGC classes')
-    # move colourbar
-    g.cax.set_position([.35, .78, .45, .0225])
-    plt.savefig(Path(outfolder) / 'topic_heatmap_{}.pdf'.format(metric))
-    plt.close()
-
-
-def bgc_class_heatmap(bgc_with_topic, bgc_classes, topic_num, outfolder,
-                      metric='correlation'):
-    """Make a clustered heatmap of bgcs and topics, and optional bgc_classes
-
-    bgc_with_topic: dict of {bgc:[[topic_num,prob,[(gene,prob)]]]}
-    bgc_classes: dict of {bgc:[[class1,class2]]}
-    topic_num: int, number of topics in the model
-
-    """
-    logger.info('Making clustered heatmap of classes, metric: {}'.format(metric))
-    # make pd dataframe from bgc with topic with prob as value for present tpic
-    bgcs, topics = zip(*bgc_with_topic.items())
-    data = [{v[0]: v[1] for v in val} for val in topics]
-    df = pd.DataFrame(data, index=bgcs, columns=list(range(topic_num)))
-    df = df.fillna(0).infer_objects(copy=False)
-    # colour rows by bgc class
-    class_set = set(bgc_classes.keys())
-    labels = [bgc_classes[bgc][0] if bgc in class_set else 'None' for bgc
-              in bgcs]
-    s_labels = sorted(set(labels))
-    # cluster each class (hierarchical, correlation)
-    class_i = clust_class_bgcs(df, labels, s_labels)
-    # get colours
-    if 'None' in s_labels:
-        s_labels.remove("None")
-    if len(s_labels) > 10:
-        lut = dict(zip(s_labels, sns.cubehelix_palette(len(
-            s_labels), start=1.2, rot=2, dark=0.11, light=0.85)))
-    else:
-        lut = dict(zip(s_labels, sns.color_palette()))
-    lut['None'] = 'w'  # make None always white
-    s_labels = ['None'] + s_labels
-    row_labs = pd.DataFrame(labels, index=bgcs, columns=['BGC classes'])
-    row_colours = row_labs.iloc[class_i, 0].map(lut)  # map colour to a label
-
-    assert not df.isnull().values.any() # DEBUG
-    assert np.isfinite(df.values).all() # DEBUG
-
-    g = sns.clustermap(df.iloc[class_i, :], cmap='nipy_spectral',
-                       row_colors=row_colours, linewidths=0, metric=metric,
-                       yticklabels=False, xticklabels=True,
-                       cbar_kws={'orientation': 'horizontal'}, vmin=0, vmax=1,
-                       row_cluster=False)
-    g.ax_heatmap.set_xticklabels(g.ax_heatmap.get_xmajorticklabels(),
-                                 fontsize=5)
-    # don't show dendrograms
-    g.ax_col_dendrogram.set_visible(False)
-    g.ax_row_dendrogram.set_ylim([0, 0.00001])
-    g.ax_row_dendrogram.set_xlim([0, 0.00001])
-    # make legend for classes
-    for label in s_labels:
-        g.ax_row_dendrogram.bar(0, 0, color=lut[label], label=label,
-                                linewidth=0)
-    g.ax_row_dendrogram.legend(loc="center left", fontsize='small',
-                               title='BGC classes')
-    # move colourbar
-    g.cax.set_position([.35, .78, .45, .0225])
-    plt.savefig(Path(outfolder) / 'class-topic_heatmap_{}.pdf'.format(metric))
-    plt.close()
-
-
-def clust_class_bgcs(df, labels, s_labels):
-    """Returns a list of indices ordered on clustered classes
-    """
-    # get a list of clustered indexes for all and then add them
-    inds = np.array([], dtype='int32')
-    for bgc_class in s_labels:
-        c_i = [i for i, cls in enumerate(labels) if cls == bgc_class]
-        dist = sch.distance.pdist(df.iloc[c_i, :], metric='correlation')
-        clust = sch.linkage(dist, metric='correlation')
-        ind = sch.leaves_list(clust)
-        # print(ind)
-        ind_reorder = [c_i[i] for i in ind]
-        inds = np.append(inds, ind_reorder)
-    return inds
 
 
 def read2dict(filepath, sep=',', header=False):
