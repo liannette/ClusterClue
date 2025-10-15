@@ -2,6 +2,7 @@ import sys
 import argparse
 import logging
 from multiprocessing import cpu_count
+from pathlib import Path
 from ipresto.pipeline import IprestoPipeline
 
 
@@ -304,17 +305,28 @@ def get_commands():
     return args
 
 
-def setup_logging(verbose=False):
+def setup_logging(log_filepath, verbose=False):
+    logging.basicConfig(level=logging.WARNING)  # Suppress most external logs by default
+
+    ipresto_logger = logging.getLogger("ipresto")
+
+    # Clear any existing handlers
+    if ipresto_logger.hasHandlers():
+        ipresto_logger.handlers.clear()
+    
     if verbose:
-        level = logging.DEBUG
+        ipresto_logger.setLevel(logging.DEBUG)
         formatting = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     else:
-        level = logging.INFO
+        ipresto_logger.setLevel(logging.INFO)
         formatting = '%(asctime)s - %(levelname)s - %(message)s'
-    logging.basicConfig(
-        level=level,
-        format=formatting
-    )
+    
+    file_handler = logging.FileHandler(log_filepath, encoding='utf-8')
+    file_handler.setFormatter(logging.Formatter(formatting))
+    ipresto_logger.addHandler(file_handler)
+
+    # Disable propagation to avoid duplicate logs in root logger
+    ipresto_logger.propagate = False
 
 
 def main():
@@ -331,9 +343,15 @@ def main():
     None
     """
     cmd = get_commands()
-    setup_logging(verbose=cmd.verbose)
 
-    logger = logging.getLogger(__name__)
+    out_dir_path = Path(cmd.out_dir_path)
+    out_dir_path.mkdir(parents=True, exist_ok=True)
+
+    log_file_path = out_dir_path / "ipresto.log"
+    if log_file_path.exists():
+        log_file_path.unlink()  # Remove existing log file to start fresh
+    setup_logging(log_filepath=log_file_path, verbose=cmd.verbose)
+    logger = logging.getLogger("ipresto.cli")
 
     logger.info("Command: %s", " ".join(sys.argv))
     logger.info("Parsed commands: %s", cmd)
