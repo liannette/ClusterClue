@@ -821,9 +821,6 @@ def bgc_topic_heatmap(bgc_with_topic, bgc_classes, topic_num, outfolder,
     row_labs = pd.DataFrame(labels, index=bgcs, columns=['BGC classes'])
     row_colours = row_labs['BGC classes'].map(lut)  # map colour to a label
 
-    assert not df.isnull().values.any() # DEBUG
-    assert np.isfinite(df.values).all() # DEBUG
-
     g = sns.clustermap(df, cmap='nipy_spectral', row_colors=row_colours,
                        linewidths=0, metric=metric, yticklabels=False,
                        xticklabels=True,
