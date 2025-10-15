@@ -305,10 +305,15 @@ def get_commands():
 
 
 def setup_logging(verbose=False):
-    level = logging.DEBUG if verbose else logging.INFO
+    if verbose
+        level = logging.DEBUG
+        formatting = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    else:
+        level = logging.INFO
+        formatting = '%(asctime)s - %(levelname)s - %(message)s'
     logging.basicConfig(
         level=level,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        format=formatting
     )
 
 
