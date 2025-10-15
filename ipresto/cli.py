@@ -305,7 +305,7 @@ def get_commands():
 
 
 def setup_logging(verbose=False):
-    if verbose
+    if verbose:
         level = logging.DEBUG
         formatting = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     else:
