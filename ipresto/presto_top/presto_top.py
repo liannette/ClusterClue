@@ -67,8 +67,6 @@ def run_lda(domlist, no_below, no_above, num_topics, cores, outfolder,
     model_filename = 'lda_model' 
     model_filepath = outfolder / model_filename
 
-    #model = os.path.join(outfolder, 'lda_model')
-
     # save the token ids the model will be build on.
     dict_filepath = outfolder / f'{model_filename}.dict'
     if not dict_filepath.exists():
@@ -121,7 +119,7 @@ def run_lda(domlist, no_below, no_above, num_topics, cores, outfolder,
             lda.save(model_filepath)
 
     if ldavis:
-        visname = os.path.join(outfolder, 'lda_method-tsne.html')
+        visname = Path(outfolder) / 'lda_method-tsne.html'
         logger.info('Running pyLDAvis for visualisation')
         vis = pyLDAvis.gensim.prepare(
             lda, corpus_bow, dict_lda, sort_topics=False, mds='tsne')
@@ -153,7 +151,7 @@ def run_lda_from_existing(existing_model, domlist, outfolder,
 
     corpus_bow = [dict_lda.doc2bow(doms) for doms in domlist]
     # save current corpus
-    corpus_file = os.path.join(outfolder, 'current_corpus.mm')
+    corpus_file = Path(outfolder) / 'current_corpus.mm'
     if not os.path.isfile(corpus_file):
         MmCorpus.serialize(corpus_file, corpus_bow)
 
@@ -191,7 +189,7 @@ def process_lda(lda, dict_lda, corpus_bow, feat_num, bgc_dict, min_f_score,
     lda_topics = lda.print_topics(-1, 75)
     topic_num = len(lda_topics)
     # get the topic names from the lda html visualisation
-    ldahtml = os.path.join(outfolder, 'lda.html')
+    ldahtml = Path(outfolder) / 'lda.html'
     if os.path.isfile(ldahtml):
         with open(ldahtml, 'r') as inf:
             for line in inf:
@@ -212,17 +210,16 @@ def process_lda(lda, dict_lda, corpus_bow, feat_num, bgc_dict, min_f_score,
                                 bgcl_dict, feat_scores, amplif=amplif)
     link_genes2topic(lda, dict_lda, outfolder)
     t_matches = retrieve_topic_matches(bgc2topic, feat_scores)
-    top_match_file = os.path.join(outfolder, 'matches_per_topic.txt')
+    top_match_file = Path(outfolder) / 'matches_per_topic.txt'
     t_matches = write_topic_matches(t_matches, bgc_classes, top_match_file,
                                     plot=False)
     t_matches = filter_matches(
         t_matches, feat_scores, filt_features, min_t_match, min_feat_match,
         overlap_score_cutoff)
-    top_match_file_filt = top_match_file.split('.txt')[0] + '_filtered.txt'
-    write_topic_matches(t_matches, bgc_classes, top_match_file_filt,
-                        plot=plot)
-    bgc_with_topics = retrieve_match_per_bgc(
-        t_matches, bgc_classes, known_subcl, outfolder, plot=plot)
+    top_match_file_filt = Path(outfolder) / 'matches_per_topic_filtered.txt'
+    write_topic_matches(t_matches, bgc_classes, top_match_file_filt, plot=plot)
+    bgc_with_topics = retrieve_match_per_bgc(t_matches, bgc_classes, known_subcl, 
+                                             outfolder, plot=plot)
 
     # make filtered scatterplot
     lengths = []
@@ -241,11 +238,10 @@ def process_lda(lda, dict_lda, corpus_bow, feat_num, bgc_dict, min_f_score,
 
     if lengths:
         # plot only when there are actual motif matches
-        len_name = os.path.join(outfolder,
-                                'len_bgcs_vs_len_topic_match_filtered.pdf')
+        len_name = Path(outfolder) / 'len_bgcs_vs_len_topic_match_filtered.pdf'
         plot_topic_matches_lengths(lengths, len_name)
         # count amount of topics per bgc - filtered
-        tpb_name = os.path.join(outfolder, 'topics_per_bgc_filtered.pdf')
+        tpb_name = Path(outfolder) / 'topics_per_bgc_filtered.pdf'
         # add all the BGCs that do not have a match
         bgc_with_matches = set(bgc_with_topics.keys())
         topics_per_bgc += [0 for bgc in set(bgcs) if bgc not in
@@ -264,8 +260,7 @@ def process_lda(lda, dict_lda, corpus_bow, feat_num, bgc_dict, min_f_score,
         logger.info("Plots about stats could not be made as there were no matches")
 
 
-def select_number_of_features(lda_topics, outfolder, min_f_score, feat_num,
-                              trans):
+def select_number_of_features(lda_topics, outfolder, min_f_score, feat_num, trans):
     """Find list of features to use for each topic and write to topics.txt
 
     lda_topics: list of tuples, [(topic_number,features_string)]
@@ -280,7 +275,7 @@ def select_number_of_features(lda_topics, outfolder, min_f_score, feat_num,
         scores {topic: {feat:score} }
     zero_topics: list, storing topics that are empty
     """
-    out_topics = os.path.join(outfolder, 'topics.txt')
+    out_topics = Path(outfolder) / 'topics.txt'
     # to record the features as {topic:[(gene,prob)]}, features are selected
     # until the min_f_score or to feat_num as a maximum
     filt_features = {}
@@ -332,7 +327,7 @@ def link_bgc_topics(lda, dict_lda, corpus_bow, bgcs, outfolder, bgcl_dict,
     Writes file to outfolder/bgc_topics.txt and supplies plots if plot=True
     """
     logger.info('Linking topics to BGCs')
-    doc_topics = os.path.join(outfolder, 'bgc_topics.txt')
+    doc_topics = Path(outfolder) / 'bgc_topics.txt'
     bgc2topic = {}
     if amplif:
         get_index = set(range(0, len(bgcs), amplif))
@@ -385,11 +380,11 @@ def link_bgc_topics(lda, dict_lda, corpus_bow, bgcs, outfolder, bgcl_dict,
     logger.info('  plotting length of matches vs length of bgcs')
     lengths = ((bgcl_dict[bgc], len(val[t][1])) for bgc, val in
                bgc2topic.items() for t in val)
-    len_name = os.path.join(outfolder, 'len_bgcs_vs_len_topic_match.pdf')
+    len_name = Path(outfolder) / 'len_bgcs_vs_len_topic_match.pdf'
     plot_topic_matches_lengths(lengths, len_name)
 
     # count amount of topics per bgc
-    tpb_name = os.path.join(outfolder, 'topics_per_bgc.pdf')
+    tpb_name = Path(outfolder) / 'topics_per_bgc.pdf'
     topics_per_bgc = Counter([len(vals) for vals in bgc2topic.values()])
     plot_topics_per_bgc(topics_per_bgc, tpb_name)
     return bgc2topic
@@ -449,7 +444,7 @@ def plot_topics_per_bgc(topics_per_bgc, outname):
 def link_genes2topic(lda, dict_lda, outfolder):
     """Write output file containing the genes (words/ dom-combis) per topic
     """
-    outfile = os.path.join(outfolder, 'terms_to_topic.txt')
+    outfile = Path(outfolder) / 'terms_to_topic.txt'
     with open(outfile, 'w') as outf:
         for d_id in dict_lda:
             d_name = dict_lda[d_id]
@@ -497,7 +492,7 @@ def retrieve_match_per_bgc(topic_matches, bgc_classes, known_subcl, outfolder,
     for topic, info in topic_matches.items():
         for match in info:
             bgc2topic[match[2]].append([topic] + match[:2] + [match[3]])
-    with open(os.path.join(outfolder, 'bgc_topics_filtered.txt'), 'w') as outf:
+    with open(Path(outfolder) / 'bgc_topics_filtered.txt', 'w') as outf:
         for bgc, info in sorted(bgc2topic.items()):
             bgc_class = bgc_classes.get(bgc, ['None'])[0]
             outf.write('>{}\nclass={}\n'.format(bgc, bgc_class))
@@ -518,7 +513,7 @@ def retrieve_match_per_bgc(topic_matches, bgc_classes, known_subcl, outfolder,
                     ','.join(['{}:{:.2f}'.format(m[0], m[1]) for m in match[2]
                               ])))
     if known_subcl:
-        subcl_out = os.path.join(outfolder, 'known_subcluster_matches.txt')
+        subcl_out = Path(outfolder) / 'known_subcluster_matches.txt'
         with open(subcl_out, 'w') as outf:
             # sort the subclusters alphabetically on first info element
             outf.write('##Values below each subcluster: %overlap len_overlap' +
@@ -539,8 +534,7 @@ def retrieve_match_per_bgc(topic_matches, bgc_classes, known_subcl, outfolder,
                         outf.write('{}\n'.format('\t'.join(
                             map(str, m_overlap))))
         # plot the overlap with known subcluster matches
-        outname = os.path.join(outfolder,
-                               'known_subcluster_matches_vs_cutoff.pdf')
+        outname = Path(outfolder) / 'known_subcluster_matches_vs_cutoff.pdf'
         line_plot_known_matches(known_subcl_matches, outname,
                                 cutoff=cutoff)
     return bgc2topic
@@ -848,8 +842,7 @@ def bgc_topic_heatmap(bgc_with_topic, bgc_classes, topic_num, outfolder,
                                title='BGC classes')
     # move colourbar
     g.cax.set_position([.35, .78, .45, .0225])
-    plt.savefig(
-        os.path.join(outfolder, 'topic_heatmap_{}.pdf'.format(metric)))
+    plt.savefig(Path(outfolder) / 'topic_heatmap_{}.pdf'.format(metric))
     plt.close()
 
 
@@ -910,8 +903,7 @@ def bgc_class_heatmap(bgc_with_topic, bgc_classes, topic_num, outfolder,
                                title='BGC classes')
     # move colourbar
     g.cax.set_position([.35, .78, .45, .0225])
-    plt.savefig(
-        os.path.join(outfolder, 'class-topic_heatmap_{}.pdf'.format(metric)))
+    plt.savefig(Path(outfolder) / 'class-topic_heatmap_{}.pdf'.format(metric))
     plt.close()
 
 
