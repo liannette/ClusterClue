@@ -5,11 +5,11 @@ import time
 from collections import Counter, OrderedDict
 from functools import partial
 from itertools import combinations, islice, chain
-from multiprocessing import Pool
-
+from multiprocessing import Pool, Queue
 import networkx as nx
+import logging
 from sympy import binomial as ncr
-
+from ipresto.utils import worker_init
 from ipresto.preprocess.utils import (
     format_cluster_to_string,
     read_clusters,
@@ -17,6 +17,7 @@ from ipresto.preprocess.utils import (
     write_representatives,
 )
 
+logger = logging.getLogger(__name__)
 
 def generate_adjacent_pairs(domains):
     """Generate unique adjacent domain pairs (unordered), skipping pairs containing '-'."""
@@ -150,10 +151,9 @@ def determine_chunksize(batch_size, cores):
     return min(chunksize, sys.maxsize)
     
 
-def generate_edges(clusters, cutoff, cores, edges_file, verbose):
+def generate_edges(clusters, cutoff, cores, edges_file, verbose, log_queue):
     """Returns pairs of clusters whose similarity exceeds cutoff, written to edges_file."""
-    if verbose:
-        print("\nGenerating similarity scores")
+    logger.info("Generating similarity scores")
 
     # Remove existing temp file
     if os.path.exists(edges_file):
@@ -165,7 +165,13 @@ def generate_edges(clusters, cutoff, cores, edges_file, verbose):
     batch_num = (total_size + batch_size - 1) // batch_size  # round up division
     bgc_pairs = combinations(clusters.items(), 2)
 
-    with open(edges_file, "a") as f, Pool(cores, maxtasksperchild=10) as pool:
+    pool = Pool(
+        cores,
+        maxtasksperchild=100,
+        initializer=worker_init,
+        initargs=(log_queue,)
+    )
+    with open(edges_file, "a") as f, pool:
         for i in range(batch_num):
             start_time = time.time()
 
@@ -190,10 +196,10 @@ def generate_edges(clusters, cutoff, cores, edges_file, verbose):
                 hours = int(t_est / 3600)
                 minutes = int(t_est % 3600 / 60)
                 seconds = int(t_est % 3600 % 60)
-                print(f"Estimated time: {hours}h{minutes}m{seconds}s")
-            
-            if verbose:
-                print(f"  {i+1}/{batch_num} batches processed")
+                logger.info(f"Estimated time: {hours}h{minutes}m{seconds}s")
+
+
+            logger.info(f"{i+1}/{batch_num} batches processed")
 
 
 def generate_graph(edges, verbose):
@@ -201,15 +207,14 @@ def generate_graph(edges, verbose):
 
     edges: list/generator of tuples, (pair1,pair2,{attributes})
     """
-    if verbose:
-        print("\nGenerating graph from edges, this may take a while")
+    logger.info("Generating graph from edges, this may take a while")
 
     graph = nx.Graph()
     graph.add_edges_from(edges)
-    if verbose:
-        print("\nGenerated graph with:")
-        print(" {} nodes".format(graph.number_of_nodes()))
-        print(" {} edges".format(graph.number_of_edges()))
+    logger.info(
+        f"Generated graph with {graph.number_of_nodes()} nodes "
+        f"and {graph.number_of_edges()} edges"
+    )
     return graph
 
 
@@ -277,13 +282,13 @@ def find_all_representatives(d_l_dict, g):
     g: networkx graph structure containing the cliques
     all_reps_dict: dict of {representative:[represented]}
     """
-    print("\nFiltering out similar bgcs.")
+    logger.info("Filtering out similar bgcs.")
 
     all_reps_dict = {}
     subg = g.subgraph(g.nodes)
     i = 1
     while subg.number_of_edges() != 0:
-        print(
+        logger.info(
             f"  iteration {i}, edges (similarities between bgcs) left: {subg.number_of_edges()}"
         )
         cliqs = nx.algorithms.clique.find_cliques(subg)
@@ -358,6 +363,7 @@ def filter_similar_clusters(
     sim_cutoff: float,
     cores: int,
     verbose: bool,
+    log_queue: Queue
 ) -> str:
     """Removes clusters based on similarity and writes the filtered clusters to a file.
 
@@ -366,13 +372,12 @@ def filter_similar_clusters(
     filtering is disabled or if the filtered file already exists, the function skips
     the filtering process.
     """
-    if verbose:
-        print(f"\nPerforming similarity filtering on {in_file_path}.")
+    logger.info(f"Performing similarity filtering on {in_file_path}.")
 
     # Read clusters from input file
     clusters = read_clusters(in_file_path)
     # Generate edges between clusters based on similarity
-    generate_edges(clusters, sim_cutoff, cores, edges_file_path, verbose)
+    generate_edges(clusters, sim_cutoff, cores, edges_file_path, verbose, log_queue)
     # Generate a graph from the edges
     graph = generate_graph(read_edges(edges_file_path), verbose)
 
@@ -396,9 +401,8 @@ def filter_similar_clusters(
     # Clean up temporary files
     os.remove(edges_file_path)
 
-    if verbose:
-        print("\nSimilarity filtering complete.")
-        print(
+    logger.info("Similarity filtering complete.")
+    logger.info(
             f"Selected {len(representative_bgcs)} representatives for {len(clusters)} clusters"
         )
-        print(f"Representative clusters written to {out_file_path}")
+    logger.info(f"Representative clusters written to {out_file_path}")

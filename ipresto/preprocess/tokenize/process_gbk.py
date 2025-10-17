@@ -4,6 +4,7 @@ from multiprocessing import Pool
 from functools import partial
 from Bio import SeqIO
 from pathlib import Path
+from ipresto.utils import worker_init
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +19,7 @@ def write_gbk_paths_file(gbks_dir_path, out_file_path):
 
 def convert_gbk2fasta(
     gbk_file_path,
-    out_file_path,
+    out_dir_path,
     include_contig_edge_clusters,
     verbose,
 ):
@@ -26,7 +27,7 @@ def convert_gbk2fasta(
 
     Parameters:
     gbk_file_path (str): Path to the input gbk file.
-    out_file_path (str): Path where the output FASTA file will be saved.
+    out_dir_path (str): Directory where the output FASTA file will be saved.
     include_contig_edge_clusters (bool): If True, include clusters at contig edges.
     verbose (bool): If True, print additional information to stdout.
 
@@ -38,7 +39,7 @@ def convert_gbk2fasta(
     bgc_name = Path(gbk_file_path).stem
 
     # parse the gbk file for conversion to fasta
-    record = list(SeqIO.read(gbk_file_path, "genbank"))
+    record = SeqIO.read(gbk_file_path, "genbank")
 
     # check if contig edge cluster
     if not include_contig_edge_clusters:
@@ -82,6 +83,7 @@ def convert_gbk2fasta(
             num_genes += 1
 
     # write the fasta file
+    out_file_path = Path(out_dir_path) #/ f"{bgc_name}.fasta"
     with open(out_file_path, "w") as out:
         for seq in seqs:
             compl_header = "{}/{}".format(seq, num_genes)
@@ -94,7 +96,7 @@ def convert_gbk2fasta_wrapper(
     out_folder,
     include_contig_edge_clusters,
     exclude_name,
-    verbose,
+    verbose
 ):
     """Convert a GenBank (gbk) file to a FASTA file.
 
@@ -124,16 +126,16 @@ def convert_gbk2fasta_wrapper(
         return "existed"
     # convert gbk to fasta
     try:
-        status = convert_gbk2fasta_wrapper(
+        status = convert_gbk2fasta(
             gbk_file_path,
-            out_folder,
+            out_file_path,
             include_contig_edge_clusters,
             verbose,
         )
         return status
     # handle errors
     except Exception as e:
-        logger.error(f"  Unexpected error processing {gbk_file_path.name}: {e}")
+        logger.error(f"Unexpected error processing {gbk_file_path.name}: {e}")
         return "failed"
 
 
@@ -144,6 +146,7 @@ def process_gbks(
     include_contig_edge_clusters,
     cores,
     verbose,
+    log_queue,
 ):
     """Convert gbk files from input folder to fasta files for each gbk file.
 
@@ -155,6 +158,7 @@ def process_gbks(
         include_contig_edge_clusters (bool): Whether to include contig edges.
         cores (int): Number of CPU cores to use for parallel processing.
         verbose (bool): If True, print additional info to stdout.
+        log_queue (multiprocessing.Queue): Queue for logging in multiprocessing.
 
     Returns:
         fastas_file_paths (list of str): List of all fasta files.
@@ -169,10 +173,15 @@ def process_gbks(
         if fasta_file_path.stem not in cluster_ids:
             fasta_file_path.unlink()
 
-    # Process each gbk file in parallel
-    with Pool(cores, maxtasksperchild=100) as pool:
+    pool = Pool(
+        cores,
+        maxtasksperchild=100,
+        initializer=worker_init,
+        initargs=(log_queue,)
+    )
+    with pool:
         process_func = partial(
-            convert_gbk2fasta,
+            convert_gbk2fasta_wrapper,
             out_folder=fastas_dir_path,
             include_contig_edge_clusters=include_contig_edge_clusters,
             exclude_name=exclude_name,
@@ -191,16 +200,17 @@ def process_gbks(
     n_failed = status_counts["failed"]
     n_filtered = status_counts["filtered"]
 
-    logger.info(f"Processed {len(gbk_file_paths)} gbk files:")
-    if n_existed > 0:
-        logger.info(f" - {n_existed} fasta files already existed in the output folder")
+    logger.info(f"Summary of GenBank to FASTA conversion:")
+    logger.info(f"  Total .gbk files processed: {len(gbk_file_paths)}")
     if n_converted > 0:
-        logger.info(f" - {n_converted} gbk files were converted to fasta files")
+        logger.info(f"  Converted: {n_converted} .gbk files successfully converted to FASTA.")
+    if n_existed > 0:
+        logger.info(f"  Existed: {n_existed} FASTA files already present and skipped.")
     if n_excluded > 0:
         logger.info(
-            f" - {n_excluded} gbk files were excluded due to the file name containing '{' or '.join(exclude_name)}'"
+            f"  Excluded: {n_excluded} .gbk files skipped due to file name containing: {', '.join(exclude_name)}"
         )
     if n_filtered > 0:
-        logger.info(f" - {n_filtered} gbk files were excluded due to being at contig edges")
+        logger.info(f"  Filtered: {n_filtered} .gbk files excluded due to being at contig edges.")
     if n_failed > 0:
-        logger.info(f" - {n_failed} gbk files failed to be converted to fasta files")
+        logger.warning(f"  Failed: {n_failed} .gbk files could not be converted due to errors.")

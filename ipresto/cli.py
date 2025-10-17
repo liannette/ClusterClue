@@ -1,10 +1,17 @@
+
+# Python 3.12 issues a DeprecationWarning when using os.fork() in a multi-threaded process,
+# because forking with active threads can cause deadlocks due to lock states not being 
+# safely inherited by the child process. To avoid this, we explicitly set the 
+# multiprocessing start method to 'spawn' which creates a fresh Python interpreter process
+from multiprocessing import set_start_method
+set_start_method("spawn", force=True)
+from multiprocessing import cpu_count, Queue, Process
 import sys
 import argparse
 import logging
-from multiprocessing import cpu_count
 from pathlib import Path
 from ipresto.pipeline import IprestoPipeline
-
+from ipresto.utils import setup_logging, listener_process
 
 def get_commands():
     parser = argparse.ArgumentParser(
@@ -305,30 +312,6 @@ def get_commands():
     return args
 
 
-def setup_logging(log_filepath, verbose=False):
-    logging.basicConfig(level=logging.WARNING)  # Suppress most external logs by default
-
-    ipresto_logger = logging.getLogger("ipresto")
-
-    # Clear any existing handlers
-    if ipresto_logger.hasHandlers():
-        ipresto_logger.handlers.clear()
-    
-    if verbose:
-        ipresto_logger.setLevel(logging.DEBUG)
-        formatting = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    else:
-        ipresto_logger.setLevel(logging.INFO)
-        formatting = '%(asctime)s - %(levelname)s - %(message)s'
-    
-    file_handler = logging.FileHandler(log_filepath, encoding='utf-8')
-    file_handler.setFormatter(logging.Formatter(formatting))
-    ipresto_logger.addHandler(file_handler)
-
-    # Disable propagation to avoid duplicate logs in root logger
-    ipresto_logger.propagate = False
-
-
 def main():
     """
     Main function to execute the iPRESTO pipeline.
@@ -343,14 +326,16 @@ def main():
     None
     """
     cmd = get_commands()
+    Path(cmd.out_dir_path).mkdir(parents=True, exist_ok=True)
+    log_file_path = Path(cmd.out_dir_path) / "ipresto.log"
 
-    out_dir_path = Path(cmd.out_dir_path)
-    out_dir_path.mkdir(parents=True, exist_ok=True)
+    # Set up logging with multiprocessing support
+    queue = Queue(-1)
+    listener = Process(target=listener_process, args=(queue, log_file_path, cmd.verbose))
+    listener.start()
 
-    log_file_path = out_dir_path / "ipresto.log"
     setup_logging(log_filepath=log_file_path, verbose=cmd.verbose)
     logger = logging.getLogger("ipresto.cli")
-
     logger.info("Command: %s", " ".join(sys.argv))
     logger.info("Parsed commands: %s", cmd)
 
@@ -388,7 +373,11 @@ def main():
         cmd.top_min_feat_score,
         cmd.cores,
         cmd.verbose,
+        queue
     )
+
+    queue.put_nowait(None)
+    listener.join()
 
 
 if __name__ == "__main__":

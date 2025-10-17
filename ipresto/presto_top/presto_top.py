@@ -71,7 +71,7 @@ def run_lda(domlist, no_below, no_above, num_topics, cores, outfolder,
     if not dict_filepath.exists():
         dict_lda = Dictionary(domlist)
         dict_lda.filter_extremes(no_below=no_below, no_above=no_above)
-        dict_lda.save(dict_filepath)
+        dict_lda.save(str(dict_filepath))
     else:
         logger.info("Loaded existing dict_file with words")
         dict_lda = Dictionary.load(str(dict_filepath))
@@ -81,7 +81,7 @@ def run_lda(domlist, no_below, no_above, num_topics, cores, outfolder,
     corpus_bow = [dict_lda.doc2bow(doms) for doms in domlist]
     corpus_filepath = outfolder / f'{model_filename}mm'
     if not corpus_filepath.exists():
-        MmCorpus.serialize(corpus_filepath, corpus_bow)
+        MmCorpus.serialize(str(corpus_filepath), corpus_bow)
 
     # to allow for x iterations of chunksize y
     passes = ceil(iters * chnksize / len(domlist))
@@ -145,7 +145,7 @@ def run_lda_from_existing(model_filepath, domlist, outfolder,
     """
     # load the token ids the model is build on.
     dict_filepath = str(model_filepath) + '.dict'
-    dict_lda = Dictionary.load(dict_filepath)
+    dict_lda = Dictionary.load(str(dict_filepath))
 
     corpus_bow = [dict_lda.doc2bow(doms) for doms in domlist]
     # save current corpus
@@ -798,7 +798,8 @@ def plot_convergence(logfile, iterations, outfile):
     iterations: int
     """
     p = re.compile(r"(-*\d+\.\d+) per-word .* (\d+\.\d+) perplexity")
-    matches = [p.findall(ln) for ln in open(logfile)]
+    with open(logfile) as f:
+        matches = [p.findall(ln) for ln in f]
     matches = [m for m in matches if len(m) > 0]
     tuples = [t[0] for t in matches]
     if tuples:

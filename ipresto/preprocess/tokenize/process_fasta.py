@@ -5,6 +5,7 @@ from pathlib import Path
 from pyhmmer.hmmer import hmmscan
 from pyhmmer.plan7 import HMMFile
 from pyhmmer.easel import SequenceFile
+from ipresto.utils import worker_init
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +52,7 @@ def run_hmmscan_wrapper(fasta_file_path, hmm_file_path, out_folder, verbose):
         return "failed"
 
 
-def process_fastas(fasta_dir_path, domtables_dir_path, hmm_file_path, cores, verbose):
+def process_fastas(fasta_dir_path, domtables_dir_path, hmm_file_path, cores, verbose, log_queue):
     """Runs hmmscan on all provided fasta files using the specified HMM file as the database.
 
     Args:
@@ -60,6 +61,7 @@ def process_fastas(fasta_dir_path, domtables_dir_path, hmm_file_path, cores, ver
         hmm_file_path (str): Path to the HMM file to be used as the database.
         cores (int): Number of CPU cores to use for parallel processing.
         verbose (bool): If True, print additional information during execution.
+        log_queue (multiprocessing.Queue): Queue for logging in multiprocessing.
 
     Returns:
         None
@@ -69,7 +71,13 @@ def process_fastas(fasta_dir_path, domtables_dir_path, hmm_file_path, cores, ver
     fasta_file_paths = list(Path(fasta_dir_path).glob("*.fasta"))
 
     # Process each fasta file in parallel
-    with Pool(cores, maxtasksperchild=100) as pool:
+    pool = Pool(
+        cores,
+        maxtasksperchild=100,
+        initializer=worker_init,
+        initargs=(log_queue,)
+    )
+    with pool:
         process_func = partial(
             run_hmmscan_wrapper,
             hmm_file_path=hmm_file_path,

@@ -4,6 +4,7 @@ from multiprocessing import Pool
 from Bio import SearchIO
 from pathlib import Path
 from functools import partial
+from ipresto.utils import worker_init
 from ipresto.preprocess.utils import (
     count_non_empty_genes,
     format_cluster_to_string,
@@ -186,7 +187,8 @@ def filter_non_empty_genes(clusters, min_genes, verbose):
 
         if n_genes_with_domains >= min_genes:
             filtered_clusters.append(cluster)
-        logger.debug(f"Excluding {cluster_id}, only {n_genes_with_domains} genes with domain hits (min {min_genes})")
+        else:
+            logger.debug(f"Excluding {cluster_id}, only {n_genes_with_domains} genes with domain hits (min {min_genes})")
 
     return sorted(filtered_clusters, key=lambda x: x[0])
 
@@ -230,6 +232,7 @@ def process_domtables(
     max_domain_overlap,
     cores,
     verbose,
+    log_queue,
 ):
     """
     Processes the domtables in a directory and writes the clusters to a file.
@@ -243,6 +246,7 @@ def process_domtables(
         domain_overlap_cutoff (float): Minimum overlap required between two domains to be considered overlapping.
         cores (int): Number of CPU cores to use for parallel processing.
         verbose (bool): If True, prints additional information during processing.
+        log_queue (multiprocessing.Queue): Queue for logging in multiprocessing.
 
     Raises:
         IOError: If the cluster file or summary file cannot be written.
@@ -260,7 +264,13 @@ def process_domtables(
     domtable_paths = list(Path(domtables_dir_path).glob("*.domtable"))
 
     # Process each domtable in parallel
-    with Pool(cores, maxtasksperchild=100) as pool:
+    pool = Pool(
+        cores,
+        maxtasksperchild=100,
+        initializer=worker_init,
+        initargs=(log_queue,)
+    )
+    with pool:
         process_func = partial(
             process_domtable_with_error_handling,
             max_domain_overlap=max_domain_overlap,

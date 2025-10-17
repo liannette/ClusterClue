@@ -20,6 +20,7 @@ class TokenizeOrchestrator:
         max_domain_overlap,
         cores,
         verbose,
+        log_queue,
     ):
         """Wrapper for tokenization of clusters.
 
@@ -30,6 +31,7 @@ class TokenizeOrchestrator:
 
         Args:
             clusters_file_path (str): Path to the output file where tokenized clusters will be saved.
+            gene_counts_file_path (str): Path to the output file where gene counts will be saved.
             gbks_dir_path (str): Path to the folder containing gbk files.
             hmm_file_path (str): Path to the HMM file to be used as the database.
             exclude_name (list of str): List of substrings; files will be excluded if part of the
@@ -40,6 +42,7 @@ class TokenizeOrchestrator:
                 value, only the domain with the highest score is kept.
             cores (int): Number of CPU cores to use for parallel processing.
             verbose (bool): If True, print additional info to stdout.
+            log_queue (multiprocessing.Queue): Queue for logging messages from parallel processes.
 
         Returns:
             str: Path to the tokenized clusters file.
@@ -63,6 +66,7 @@ class TokenizeOrchestrator:
             include_contig_edge_clusters,
             cores,
             verbose,
+            log_queue,
         )
 
         # Step 2: Processing fastas with hmmscan to generate domtables
@@ -74,6 +78,7 @@ class TokenizeOrchestrator:
             hmm_file_path,
             cores,
             verbose,
+            log_queue,
         )
 
         # Step 3: Processing domtables into tokenized clusters
@@ -87,6 +92,7 @@ class TokenizeOrchestrator:
             max_domain_overlap,
             cores,
             verbose,
+            log_queue,
         )
 
         # Print paths to output files

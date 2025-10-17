@@ -1,3 +1,11 @@
+import warnings
+# Suppress UserWarning from NumPy when importing statsmodels about smallest 
+# subnormal float values being zero, caused by underlying native libraries 
+# enabling flush-to-zero mode for performance. This warning does not affect 
+# numerical accuracy for our use case (statistical p-value corrections)
+# because values like p-values are never close to subnormal float32 limits.
+# Suppression keeps logs clean without hiding real issues.
+warnings.filterwarnings("ignore", message="The value of the smallest subnormal for")
 import logging
 import networkx as nx
 from collections import Counter, defaultdict, OrderedDict

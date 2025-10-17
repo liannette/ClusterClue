@@ -2,6 +2,7 @@ import random
 import logging
 from pathlib import Path
 from typing import List, Optional
+from multiprocessing import Queue
 from ipresto.preprocess.utils import (
     count_gene_occurrences,
     read_clusters_and_remove_empty,
@@ -34,6 +35,7 @@ class PreprocessOrchestrator:
         min_gene_occurrence: int,
         cores: int,
         verbose: bool,
+        log_queue: Queue,
     ) -> str:
         """Orchestrate all preprocessing steps.
 
@@ -55,6 +57,7 @@ class PreprocessOrchestrator:
             min_gene_occurrence (int): Minimum number of occurrences for a gene to be retained.
             cores (int): Number of cores to use.
             verbose (bool): Whether to print verbose output.
+            log_queue (multiprocessing.Queue): Queue for logging in multiprocessing.
 
         Returns:
             str: Path to the final preprocessed clusters file.
@@ -88,6 +91,7 @@ class PreprocessOrchestrator:
                 max_domain_overlap,
                 cores,
                 verbose,
+                log_queue,
             )
 
         # Step 2: Filter non-biosynthetic protein domains
@@ -135,6 +139,7 @@ class PreprocessOrchestrator:
                     sim_cutoff,
                     cores,
                     verbose,
+                    log_queue,
                 )
             clusters_file_path = out_file_path
 

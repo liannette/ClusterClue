@@ -43,6 +43,7 @@ class IprestoPipeline:
         top_min_feat_score,
         cores,
         verbose,
+        log_queue
     ):
         """
         Runs the entire pipeline.
@@ -71,6 +72,7 @@ class IprestoPipeline:
             min_gene_occurrence,
             cores,
             verbose,
+            log_queue,
         )
 
         # Step 2: Statistical subcluster detection (PRESTO-STAT)
@@ -110,12 +112,6 @@ class IprestoPipeline:
                 cores,
                 verbose,
             )
-
-        # if visualize:
-        #     if verbose:
-        #         logger.info("=== Visualizations ===")
-        #     plot_histogram(load_data(preprocessed_data_path), output_path="histogram.png")
-        #     plot_comparison(results, output_path="comparison.png")
 
         end_time = time.time()
         elapsed_time = end_time - start_time
