@@ -1,6 +1,9 @@
 import logging
 import logging.handlers
 
+# I will be honest - I do not understand logging in multiprocessing at all.
+# This code has been written by trial and error, and there might be better ways to do this.
+
 
 def setup_logging(log_filepath, verbose=False):
     level = logging.DEBUG if verbose else logging.INFO
@@ -43,24 +46,21 @@ def listener_configurer(log_filepath, verbose):
 
 def listener_process(queue, log_filepath, verbose):
     listener_configurer(log_filepath, verbose)
-    listener = logging.handlers.QueueListener(queue, *logging.getLogger().handlers)
-    listener.start()
-    try:
-        while True:
-            record = queue.get()
-            if record is None:  # We send None to stop listener
-                break
-            logger = logging.getLogger(record.name)
-            logger.handle(record)
-    finally:
-        listener.stop()
+
+    while True:
+        record = queue.get()
+        if record is None:  # sentinel
+            break
+
+        logger = logging.getLogger(record.name)
+        logger.handle(record)
 
 
-def worker_configurer(queue):
-    handler = logging.handlers.QueueHandler(queue)  # Send logs to queue
+def worker_configurer(queue, verbose=False):
+    handler = logging.handlers.QueueHandler(queue)
     root = logging.getLogger()
-    root.setLevel(logging.DEBUG)
-    root.handlers = []  # Remove other handlers
+    root.setLevel(logging.DEBUG if verbose else logging.INFO)
+    root.handlers = []
     root.addHandler(handler)
 
 

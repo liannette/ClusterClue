@@ -333,8 +333,8 @@ def main():
     queue = Queue(-1)
     listener = Process(target=listener_process, args=(queue, log_file_path, cmd.verbose))
     listener.start()
-
     setup_logging(log_filepath=log_file_path, verbose=cmd.verbose)
+
     logger = logging.getLogger("ipresto.cli")
     logger.info("Command: %s", " ".join(sys.argv))
     logger.info("Parsed commands: %s", cmd)
@@ -376,8 +376,10 @@ def main():
         queue
     )
 
-    queue.put_nowait(None)
+    queue.put(None)
     listener.join()
+    queue.close()
+    queue.join_thread()
 
 
 if __name__ == "__main__":
