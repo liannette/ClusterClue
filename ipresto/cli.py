@@ -11,7 +11,7 @@ import argparse
 import logging
 from pathlib import Path
 from ipresto.pipeline import IprestoPipeline
-from ipresto.utils import setup_logging, listener_process
+from ipresto.utils import listener_process, worker_configurer
 
 def get_commands():
     parser = argparse.ArgumentParser(
@@ -329,15 +329,14 @@ def main():
     Path(cmd.out_dir_path).mkdir(parents=True, exist_ok=True)
     log_file_path = Path(cmd.out_dir_path) / "ipresto.log"
 
-    # Set up logging with multiprocessing support
+    # Set up multiprocessing-friendly logging
     queue = Queue(-1)
     listener = Process(target=listener_process, args=(queue, log_file_path, cmd.verbose))
     listener.start()
-    setup_logging(log_filepath=log_file_path, verbose=cmd.verbose)
+    worker_configurer(queue)
 
     logger = logging.getLogger("ipresto.cli")
     logger.info("Command: %s", " ".join(sys.argv))
-    logger.info("Parsed commands: %s", cmd)
 
     # Execute the main pipeline with provided arguments
     IprestoPipeline().run(
