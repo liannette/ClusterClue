@@ -90,5 +90,6 @@ def remove_infrequent_genes(
 
     write_clusters(filtered_bgcs, out_file_path)
     write_gene_counts(count_gene_occurrences(filtered_bgcs), counts_file_path)
+    logger.info(f"Gene filtered clusters written to {out_file_path}")
 
     return out_file_path
