@@ -259,6 +259,16 @@ def get_commands():
         default=0.95,
         metavar="<float>"
     )
+    # GWMs
+    parser.add_argument(
+        "--k_values",
+        nargs="+",
+        type=int,
+        default=[2000,],
+        metavar="<int>",
+        help="Specify one or more integers to define the number of motifs (GWMS). "
+        "Each integer represents a different clustering configuration (default: 2000).",
+    )
     # parser.add_argument(
     #     "--classes",
     #     help="A file containing classes of the BGCs used in the analysis. First column should "
@@ -370,6 +380,7 @@ def main():
         cmd.top_plot,
         cmd.top_feat_num,
         cmd.top_min_feat_score,
+        cmd.k_values,
         cmd.cores,
         cmd.verbose,
         queue

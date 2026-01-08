@@ -5,6 +5,7 @@ from pathlib import Path
 from ipresto.preprocess.orchestrator import PreprocessOrchestrator
 from ipresto.presto_stat.orchestrator import StatOrchestrator
 from ipresto.presto_top.orchestrator import TopOrchestrator
+from ipresto.gwms.create_gwms import create_gwms
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,7 @@ class IprestoPipeline:
         top_plot,
         top_feat_num,
         top_min_feat_score,
+        k_values,
         cores,
         verbose,
         log_queue
@@ -76,9 +78,9 @@ class IprestoPipeline:
         )
 
         # Step 2: Statistical subcluster detection (PRESTO-STAT)
+        stat_dir_path = out_dir_path / "stat_subclusters"
         if run_stat:
             logger.info("=== PRESTO-STAT: statistical subcluster detection ===")
-            stat_dir_path = out_dir_path / "stat_subclusters"
             StatOrchestrator().run(
                 stat_dir_path,
                 clusters_file_path,
@@ -90,10 +92,10 @@ class IprestoPipeline:
                 verbose,
             )
 
-        # Step 3: Topic modelling for ubcluster motif detection (PRESTO-TOP)
+        # Step 3: Topic modelling for subcluster motif detection (PRESTO-TOP)
+        top_dir_path = out_dir_path / "top_subclusters"
         if run_top:
-            logger.info("=== PRESTO-TOP: subcluster motif detection using topic modelling ===")
-            top_dir_path = out_dir_path / "top_subclusters"
+            logger.info("=== PRESTO-TOP: subcluster detection using topic modelling ===")
             TopOrchestrator().run(
                 top_dir_path,
                 clusters_file_path,
@@ -112,6 +114,21 @@ class IprestoPipeline:
                 cores,
                 verbose,
             )
+
+        # Step 4: Create GWMs
+        logger.info("=== Create Subcluster Motif gene weight matrices (GWMs) ===")
+        stat_matches_filepath = stat_dir_path / "detected_stat_modules.txt"
+        top_matches_filepath = top_dir_path / "matches_per_topic_filtered.txt"
+
+        gwm_dirpath = out_dir_path / "motif_gwms"
+        create_gwms(
+            clusters_file_path,
+            stat_matches_filepath,
+            top_matches_filepath,
+            k_values,
+            gwm_dirpath
+        )
+
 
         end_time = time.time()
         elapsed_time = end_time - start_time
