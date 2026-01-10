@@ -53,7 +53,7 @@ def write_combined_matches(matches, output_filepath):
             outfile.write(f"{bgc_id}\t{','.join(mod)}\n")
 
 
-def combine_matches(stat_matches_filepath, top_matches_filepath, out_filepath):
+def combine_presto_matches(stat_matches_filepath, top_matches_filepath, out_filepath):
 
     # Load stat subcluster predictions
     stat_matches = read_stat_subcluster_matches(stat_matches_filepath)

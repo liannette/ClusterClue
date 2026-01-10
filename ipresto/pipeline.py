@@ -5,7 +5,7 @@ from pathlib import Path
 from ipresto.preprocess.orchestrator import PreprocessOrchestrator
 from ipresto.presto_stat.orchestrator import StatOrchestrator
 from ipresto.presto_top.orchestrator import TopOrchestrator
-from ipresto.gwms.create_gwms import create_gwms
+from ipresto.gwms.orchestrator import build_motif_gwms
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +121,7 @@ class IprestoPipeline:
         top_matches_filepath = top_dir_path / "matches_per_topic_filtered.txt"
 
         gwm_dirpath = out_dir_path / "motif_gwms"
-        create_gwms(
+        build_motif_gwms(
             clusters_file_path,
             stat_matches_filepath,
             top_matches_filepath,

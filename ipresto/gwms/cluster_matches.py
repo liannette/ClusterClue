@@ -2,14 +2,44 @@ import logging
 from collections import defaultdict
 from sklearn.cluster import MiniBatchKMeans
 from sklearn.preprocessing import MultiLabelBinarizer
+from collections import Counter
 # from scipy.sparse import csr_matrix
 
 logger = logging.getLogger(__name__)
 
 
-def collapse_grouped_matches(module2labels, modules2bgcs):
-    # collapse modules if they have the same group label and are in same BGC
+def create_sparse_matrix(modules):
+    mlb = MultiLabelBinarizer(sparse_output=True)
+    X = mlb.fit_transform(modules)
+    return X
 
+
+def _get_auto_batch_size(n_samples):
+    """
+    Automatically determine batch size for MiniBatchKMeans.
+    - Uses ~5% of n_samples
+    - Ensures min 500 and max 50000
+    """
+    batch = max(500, int(n_samples * 0.05))  # 5% of samples
+    batch = min(batch, 50000)                # cap at 50k
+    return batch
+
+
+def kmeans_clustering(X, k):
+    batch_size = _get_auto_batch_size(X.shape[0])
+    logger.info(f"Clustering with k={k}, batch_size={batch_size}...")
+    kmeans = MiniBatchKMeans(
+        n_clusters=int(k),
+        batch_size=batch_size,
+        init="k-means++",
+        n_init=10,
+        random_state=42, 
+        )
+    kmeans.fit(X)
+    return kmeans.labels_
+
+
+def collapse_grouped_matches(module2labels, modules2bgcs):
     collapsed_matches = defaultdict(lambda: defaultdict(set))
     for module, label in module2labels.items():
         for bgc_id in modules2bgcs[module]:
@@ -24,25 +54,51 @@ def collapse_grouped_matches(module2labels, modules2bgcs):
     return label2matches
 
 
-def get_auto_batch_size(n_samples):
-    """
-    Automatically determine batch size for MiniBatchKMeans.
-    - Uses ~5% of n_samples
-    - Ensures min 500 and max 50000
-    """
-    batch = max(500, int(n_samples * 0.05))  # 5% of samples
-    batch = min(batch, 50000)                # cap at 50k
-    return batch
-
-
 def write_matches_per_group(matches_per_label, output_filepath):
     with open(output_filepath, "w") as f:
         for label in sorted(matches_per_label.keys()):
             matches = matches_per_label[label]
             matches.sort(key=lambda x: x[0]) # sort by bgc_id
-            f.write(f"#motif: M{label}, n_matches: {len(matches)}\n")
+            f.write(f"#motif: {label}, n_matches: {len(matches)}\n")
             for bgc_id, module in matches:
-                f.write(f"M{label}\t{bgc_id}\t{','.join(module)}\n")
+                f.write(f"{label}\t{bgc_id}\t{','.join(module)}\n")
+
+
+def calulate_gene_probabilities(label2matches, min_prob):
+    gene_probs = defaultdict(dict)
+    for label, matches in label2matches.items():
+        # count gene occurrences
+        gene_counter = Counter()
+        for bgc_id, module in matches:
+            gene_counter.update(set(module))
+        # calculate probabilities
+        n_matches = len(matches) # total subcluster predictions in this motif
+        for gene, count in gene_counter.items():
+            prob = count / n_matches
+            # filter by min_prob
+            if prob >= min_prob:
+                gene_probs[label][gene] = prob
+    return gene_probs
+
+
+def get_sorted_genes_and_probabilities(gene_probs):
+    if len(gene_probs) > 0:
+        gene_probs = sorted(gene_probs.items(), key=lambda x: x[1], reverse=True)
+        genes, probabilities = list(zip(*gene_probs))  
+    else:
+        genes, probabilities = [], []
+    return genes, probabilities
+
+
+def write_gene_probabilities(label2geneprobs, label2matches, output_filepath):
+    with open(output_filepath, "w") as outfile:
+        for label, gene_probs in label2geneprobs.items():
+            n_matches = len(label2matches[label])
+            genes, probs = get_sorted_genes_and_probabilities(gene_probs)
+
+            outfile.write(f"#{label}, matches:{n_matches}\n")
+            outfile.write(f"{'\t'.join(genes)}\n")
+            outfile.write(f"{'\t'.join([str(round(p, 3)) for p in probs])}\n")
 
 
 def cluster_matches_kmeans(matches, k_values, output_dirpath):
@@ -51,34 +107,30 @@ def cluster_matches_kmeans(matches, k_values, output_dirpath):
     module2bgcs = defaultdict(list)
     for bgc_id, module in matches:
         module2bgcs[module].append(bgc_id)
-    logger.info(f"Total number of unique subcluster modules: {len(module2bgcs)}")
-
-    # group subcluster predictions using kmeans clustering
     modules = list(module2bgcs.keys())
-    mlb = MultiLabelBinarizer(sparse_output=True)
-    X = mlb.fit_transform(modules)
+    logger.info(f"Total number of unique subcluster modules: {len(modules)}")
+
+    # create sparse matrix
+    X = create_sparse_matrix(modules)
     logger.info(f"Prepared sparse matrix for clustering: {X.shape[0]} rows (modules), {X.shape[1]} features (genes)")
 
     for k in k_values:
+        # perform k-means clustering
+        labels = kmeans_clustering(X, k)
+        module2labels = {m: f"M{label+1}" for m, label in zip(modules, labels)}
 
-        clustered_matches_filepath = output_dirpath / f"matches_kmeans_{k}.txt"
-        if clustered_matches_filepath.exists():
-            logger.info(f"Skipping k={k}, output file exists: {clustered_matches_filepath}")
-            continue
-
-        batch_size = get_auto_batch_size(len(modules))
-        logger.info(f"Clustering with k={k}, batch_size={batch_size}...")
-        kmeans = MiniBatchKMeans(
-            n_clusters=int(k),
-            batch_size=batch_size,
-            init="k-means++",
-            n_init=10,
-            random_state=42, 
-            )
-        kmeans.fit(X)
-        module2labels = {m: label+1 for m, label in zip(modules, kmeans.labels_)}
-
+        # collapse matches per BGC and per label
         label2matches = collapse_grouped_matches(module2labels, module2bgcs)
 
+        # write clustered matches to file
+        clustered_matches_filepath = output_dirpath / f"matches_kmeans_{k}.txt"
         write_matches_per_group(label2matches, clustered_matches_filepath)
         logger.info(f"Wrote clustered matches to {clustered_matches_filepath}")
+
+        # calculate the gene probabilities for each group
+        label2geneprobs = calulate_gene_probabilities(label2matches, min_prob=0.001)
+       
+        gene_probs_filepath = output_dirpath / f"gene_probabilities_kmeans_{k}.txt"
+        write_gene_probabilities(label2geneprobs, label2matches, gene_probs_filepath)
+        logger.info(f"Wrote gene probabilities to {gene_probs_filepath}")
+        
