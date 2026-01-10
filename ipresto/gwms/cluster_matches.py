@@ -65,43 +65,42 @@ def write_matches_per_group(matches_per_label, output_filepath):
 
 
 def calulate_gene_probabilities(label2matches, min_prob):
-    gene_probs = defaultdict(dict)
+    label2geneprobs = dict()
     for label, matches in label2matches.items():
+        gene_probs = []
         # count gene occurrences
         gene_counter = Counter()
         for bgc_id, module in matches:
             gene_counter.update(set(module))
         # calculate probabilities
-        n_matches = len(matches) # total subcluster predictions in this motif
+        n_matches = len(matches)
         for gene, count in gene_counter.items():
             prob = count / n_matches
             # filter by min_prob
             if prob >= min_prob:
-                gene_probs[label][gene] = prob
-    return gene_probs
-
-
-def get_sorted_genes_and_probabilities(gene_probs):
-    if len(gene_probs) > 0:
-        gene_probs = sorted(gene_probs.items(), key=lambda x: x[1], reverse=True)
-        genes, probabilities = list(zip(*gene_probs))  
-    else:
-        genes, probabilities = [], []
-    return genes, probabilities
+                gene_probs.append((gene, prob))
+        # sort genes by probability
+        gene_probs.sort(key=lambda x: x[1], reverse=True)
+        label2geneprobs[label] = gene_probs
+    return label2geneprobs
 
 
 def write_gene_probabilities(label2geneprobs, label2matches, output_filepath):
     with open(output_filepath, "w") as outfile:
-        for label, gene_probs in label2geneprobs.items():
+        for label in sorted(label2geneprobs.keys()):
             n_matches = len(label2matches[label])
-            genes, probs = get_sorted_genes_and_probabilities(gene_probs)
+            gene_probs = label2geneprobs[label]
+            if len(gene_probs) > 0:
+                genes, probs = list(zip(*gene_probs))
+            else:
+                genes, probs = [], []
 
-            outfile.write(f"#{label}, matches:{n_matches}\n")
+            outfile.write(f"#motif: {label}, n_matches: {n_matches}\n")
             outfile.write(f"{'\t'.join(genes)}\n")
             outfile.write(f"{'\t'.join([str(round(p, 3)) for p in probs])}\n")
 
 
-def cluster_matches_kmeans(matches, k_values, output_dirpath):
+def cluster_matches_kmeans(matches, k, output_dirpath):
 
     # create mapping for subcluster module to bgcs
     module2bgcs = defaultdict(list)
@@ -114,23 +113,24 @@ def cluster_matches_kmeans(matches, k_values, output_dirpath):
     X = create_sparse_matrix(modules)
     logger.info(f"Prepared sparse matrix for clustering: {X.shape[0]} rows (modules), {X.shape[1]} features (genes)")
 
-    for k in k_values:
-        # perform k-means clustering
-        labels = kmeans_clustering(X, k)
-        module2labels = {m: f"M{label+1}" for m, label in zip(modules, labels)}
+    # perform k-means clustering
+    labels = kmeans_clustering(X, k)
+    padding = len(str(k)) # Calculate padding based on k
+    module2labels = {m: f"M{label+1:0{padding}d}" for m, label in zip(modules, labels)}
 
-        # collapse matches per BGC and per label
-        label2matches = collapse_grouped_matches(module2labels, module2bgcs)
+    # collapse matches per BGC and per label
+    label2matches = collapse_grouped_matches(module2labels, module2bgcs)
 
-        # write clustered matches to file
-        clustered_matches_filepath = output_dirpath / f"matches_kmeans_{k}.txt"
-        write_matches_per_group(label2matches, clustered_matches_filepath)
-        logger.info(f"Wrote clustered matches to {clustered_matches_filepath}")
+    # write clustered matches to file
+    clustered_matches_filepath = output_dirpath / "motif_matches.txt"
+    write_matches_per_group(label2matches, clustered_matches_filepath)
+    logger.info(f"Wrote clustered matches to {clustered_matches_filepath}")
 
-        # calculate the gene probabilities for each group
-        label2geneprobs = calulate_gene_probabilities(label2matches, min_prob=0.001)
-       
-        gene_probs_filepath = output_dirpath / f"gene_probabilities_kmeans_{k}.txt"
-        write_gene_probabilities(label2geneprobs, label2matches, gene_probs_filepath)
-        logger.info(f"Wrote gene probabilities to {gene_probs_filepath}")
-        
+    # calculate the gene probabilities for each group
+    label2geneprobs = calulate_gene_probabilities(label2matches, min_prob=0.001)
+    
+    gene_probs_filepath = output_dirpath / "motif_gene_probabilities.txt"
+    write_gene_probabilities(label2geneprobs, label2matches, gene_probs_filepath)
+    logger.info(f"Wrote gene probabilities to {gene_probs_filepath}")
+    
+    return label2geneprobs

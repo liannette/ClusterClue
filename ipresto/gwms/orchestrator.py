@@ -44,13 +44,6 @@ def build_motif_gwms(
         combined_matches_filepath
         )
 
-    logger.info("Clustering similar subcluster predicions using k-means")
-    cluster_matches_kmeans(
-        combined_matches,
-        k_values,
-        out_dirpath
-    )
-
     logger.info(f"Getting gene background counts from clusterfile {clusters_filepath}")
     clusters = read_clusters(clusters_filepath)
     bg_counts_filepath = out_dirpath / "genes_background_count.txt"
@@ -60,26 +53,28 @@ def build_motif_gwms(
     write_gene_background_count(gene_bg_counts, len(clusters), bg_counts_filepath)
     logger.info(f"Wrote gene background counts to {bg_counts_filepath}")
 
-    # logger.info("Creating GWMs with different parameter combinations")
-    # # min_matches = (5, 25, 50)
-    # # min_core_genes = (1, 2)
-    # # core_threshold = (0.6, 0.7, 0.8)
-    # # min_gene_prob = (0.1, 0.3, 0.5)
-    # min_matches = (5,)
-    # min_core_genes = (1,)
-    # core_threshold = (0.6,)
-    # min_gene_prob = (0.1,)
-    # hyperparams = product(
-    #     k_values,
-    #     min_matches,
-    #     min_core_genes,
-    #     core_threshold,
-    #     min_gene_prob,
-    # )
-    # for k, mm, mgc, ct, mgp, in hyperparams:
-    #     logger.info(f"Creating GWMs for parameters: min_matches={mm}, k={k}, "
-    #         f"min_core_genes={mgc}, core_threshold={ct}, min_gene_prob={mgp}")
-    #     gwm_dirpath = out_dirpath / f"mm{mm}_mcg{mgc}_ct{ct}_mgp{mgp}"
-    #     gwm_dirpath.mkdir(parents=True, exist_ok=True)
-
+    for k in k_values:
+        subout_dirpath = out_dirpath / f"kmeans_{k}"
+        subout_dirpath.mkdir(parents=True, exist_ok=True)
+        
+        logger.info(f"Clustering subcluster matches into {k} motifs using k-means")
+        label2geneprobs = cluster_matches_kmeans(combined_matches, k, subout_dirpath)
+        
+        # logger.info("Creating GWMs with different parameter combinations")
+        # # min_matches = (5, 25, 50)
+        # # min_core_genes = (1, 2)
+        # # core_threshold = (0.6, 0.7, 0.8)
+        # # min_gene_prob = (0.1, 0.3, 0.5)
+        # min_matches = (5,)
+        # min_core_genes = (1,)
+        # core_threshold = (0.6,)
+        # min_gene_prob = (0.1,)
+        # hyperparams = product(
+        #     min_matches,
+        #     min_core_genes,
+        #     core_threshold,
+        #     min_gene_prob,
+        # )
+        # for mm, mgc, ct, mgp, in hyperparams:
+        #     build_motif_gwms(label2geneprobs, mm, mgc, ct, mgp, subout_dirpath)
 
