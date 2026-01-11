@@ -3,7 +3,9 @@ from collections import defaultdict
 from sklearn.cluster import MiniBatchKMeans
 from sklearn.preprocessing import MultiLabelBinarizer
 from collections import Counter
-# from scipy.sparse import csr_matrix
+
+from ipresto.gwms.subcluster_motif import SubclusterMotif
+
 
 logger = logging.getLogger(__name__)
 
@@ -120,7 +122,7 @@ def cluster_matches_kmeans(matches, k, output_dirpath):
 
     # collapse matches per BGC and per label
     label2matches = collapse_grouped_matches(module2labels, module2bgcs)
-
+    
     # write clustered matches to file
     clustered_matches_filepath = output_dirpath / "motif_matches.txt"
     write_matches_per_group(label2matches, clustered_matches_filepath)
@@ -128,9 +130,20 @@ def cluster_matches_kmeans(matches, k, output_dirpath):
 
     # calculate the gene probabilities for each group
     label2geneprobs = calulate_gene_probabilities(label2matches, min_prob=0.001)
-    
+
     gene_probs_filepath = output_dirpath / "motif_gene_probabilities.txt"
     write_gene_probabilities(label2geneprobs, label2matches, gene_probs_filepath)
     logger.info(f"Wrote gene probabilities to {gene_probs_filepath}")
-    
-    return label2geneprobs
+
+    # create SubclusterMotif objects
+    subcluster_motifs = dict()
+    for label in sorted(label2geneprobs):
+        n_matches = len(label2matches[label])
+        subcluster_motifs[label] = SubclusterMotif(
+            motif_id=label,
+            n_matches=n_matches,
+            tokenised_genes=[gene for gene, prob in label2geneprobs[label]],
+            probabilities=[prob for gene, prob in label2geneprobs[label]],
+            )
+
+    return subcluster_motifs

@@ -1,15 +1,123 @@
 import logging
+import numpy as np
+
 
 logger = logging.getLogger(__name__)
 
+
+def passes_min_matches(n_matches, min_matches):
+    return True if int(n_matches) >= int(min_matches) else False
+
+
+def passes_min_core_genes(probabilities, min_core_genes, prob_threshold):
+    core_gene_prob = [prob for prob in probabilities if prob >= prob_threshold]
+    return True if len(core_gene_prob) >= min_core_genes else False
+
+
+def remove_low_probabilities(motif, min_probability):
+    """
+    Removes genes that have a probability lower than min_probability
+    """
+    filtered_genes = []
+    filtered_probabilities = []
+    for gene, prob in zip(motif.tokenised_genes, motif.probabilities):
+        if prob >= min_probability:
+            filtered_genes.append(gene)
+            filtered_probabilities.append(prob)
+    motif.tokenised_genes = filtered_genes
+    motif.probabilities = filtered_probabilities
+    return motif
+
+
+def calculate_weight_matrix(probabilities, background_probabilities):
+    prob_matrix = create_probability_matrix(probabilities)
+    bg_prob_matrix = create_probability_matrix(background_probabilities)
+    # pseudocount = 1e-10
+    # weight_matrix = np.log2((prob_matrix + pseudocount) / (bg_prob_matrix + pseudocount))
+    with np.errstate(divide='ignore'): # ignore log2(0) warnings
+        weight_matrix = np.log2(prob_matrix / bg_prob_matrix)
+    return weight_matrix
+
+
+def create_probability_matrix(probabilities):
+    """Creates a propability matrix of the tokenised genes"""
+    prob_matrix = []
+    for prob in probabilities:
+        prob_matrix.append([prob, 1-prob])
+    return np.array(prob_matrix)
+
+
 def build_motif_gwms(
-    label2geneprobs,
-    mm,
-    mgc,
-    ct,
-    mgp,
+    subcluster_motifs,
+    background_counts,
+    n_clusters,
+    min_matches,
+    min_core_genes,
+    core_threshold,
+    min_gene_prob,
     out_dirpath,
     ):
-    logger.info(f"Building GWMs for mm={mm}, mgc={mgc}, ct={ct}, mgp={mgp}...")
+    logger.info(
+        f"Building GWMs for min_matches={min_matches}, "
+        f"min_core_genes={min_core_genes}, core_threshold={core_threshold}, "
+        f"min_gene_prob={min_gene_prob}...")
 
+    n_low_matches = 0
+    n_low_core_genes = 0
+    n_low_genes = 0
 
+    filtered_motifs = dict()
+    for motif in subcluster_motifs.values():
+        # remove probabilities below the min probability threshold
+        motif = remove_low_probabilities(motif, min_gene_prob)
+
+        # check if motif passes filter
+        if len(motif.tokenised_genes) < 2:
+            n_low_genes += 1
+            continue
+        if not passes_min_core_genes(motif.probabilities, min_core_genes, core_threshold):
+            n_low_core_genes += 1
+            continue
+        if not passes_min_matches(motif.n_matches, min_matches):
+            n_low_matches += 1
+            continue
+
+        bg_probs = [background_counts[gene]/n_clusters for gene in motif.tokenised_genes]
+        motif.gwm = calculate_weight_matrix(motif.probabilities, bg_probs)
+        filtered_motifs[motif.motif_id] = motif
+
+    n_initial = len(subcluster_motifs)
+    n_filtered = len(filtered_motifs)
+    p_filtered = (n_filtered / n_initial) * 100
+    p_low_matches = (n_low_matches / n_initial) * 100
+    p_low_core_genes = (n_low_core_genes / n_initial) * 100
+    p_low_genes = (n_low_genes / n_initial) * 100
+    
+
+    logger.info(
+        f"Total motifs after filtering: {n_filtered} ({p_filtered:.2f}% of "
+        f"initial {n_initial} motifs )"
+        )
+    logger.info(
+        f"Motifs removed due to low gene number (<2 genes with prob >= "
+        f"{min_gene_prob}): {n_low_genes} ({p_low_genes:.2f}%)"
+        )
+    logger.info(
+        f"Motifs removed due to low core genes (<{min_core_genes} genes with "
+        f"prob >= {core_threshold}): {n_low_core_genes} ({p_low_core_genes:.2f}%)"
+        )
+    logger.info(
+        f"Motifs removed due to low matches (<{min_matches}): {n_low_matches} "
+        f"({p_low_matches:.2f}%)"
+        )
+
+    # write the gene weight matrices to the output file
+    ct = int(core_threshold * 100)
+    mgp = int(min_gene_prob * 100)
+    filename = f"GWMs_mm{min_matches}_mgc{min_core_genes}_ct{ct}_mgp{mgp}.txt"
+    gwm_filepath = out_dirpath / filename
+    with open(gwm_filepath, "w") as outfile:
+        for motif in filtered_motifs.values():
+            outfile.write(motif.gwm_to_txt())
+
+    return filtered_motifs
