@@ -269,6 +269,23 @@ def get_commands():
         help="Specify one or more integers to define the number of motifs (GWMS). "
         "Each integer represents a different clustering configuration (default: 2000).",
     )
+    parser.add_argument(
+        "--ref_sc",
+        dest="reference_subclusters_filepath",
+        default=None,
+        metavar="<file>",
+        help="TSV file with annotated subclusters. "
+        "Used to select best hyperparameters for motif generation."
+    )
+    parser.add_argument(
+        "--ref_gbks",
+        dest="reference_gbks_dirpath",
+        default=None,
+        metavar="<dir>",
+        help="Input directory containing gbk files of gene clusters with annotated subclusters. "
+        "Used to select best hyperparameters for motif generation.",
+    )
+
     # parser.add_argument(
     #     "--classes",
     #     help="A file containing classes of the BGCs used in the analysis. First column should "
@@ -381,6 +398,8 @@ def main():
         cmd.top_feat_num,
         cmd.top_min_feat_score,
         cmd.k_values,
+        cmd.reference_subclusters_filepath,
+        cmd.reference_gbks_dirpath,
         cmd.cores,
         cmd.verbose,
         queue

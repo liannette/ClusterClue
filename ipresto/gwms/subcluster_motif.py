@@ -1,11 +1,13 @@
 import numpy as np
 from collections import Counter
+import re
 
 
 class SubclusterMotif:
     def __init__(self, 
         motif_id, 
         matches=None,
+        n_matches=None,
         tokenized_genes=None,
         probabilities=None, 
         gwm=None,
@@ -13,14 +15,32 @@ class SubclusterMotif:
         ):
         self.motif_id = motif_id
         self.matches = matches
+        if matches is None:
+            self.n_matches = n_matches
+        else:
+            self.n_matches = len(matches)
         self.tokenized_genes = tokenized_genes
         self.probabilities = probabilities
         self.gwm = gwm
         self.threshold = threshold
 
-    @property
-    def n_matches(self):
-        return len(self.matches)
+
+    @classmethod
+    def from_lines(cls, lines):
+        motif_id = re.search(r"motif: (\w+)", lines[0]).group(1)
+        n_matches = re.search(r"n_matches: (\d+)", lines[0]).group(1)
+        threshold = re.search(r"threshold: (-?[\d.]+)", lines[0]).group(1)
+        tokenized_genes = lines[1].split()
+        weights_present = [float(num) for num in lines[2].split()]
+        weights_absent = [float(num) for num in lines[3].split()]
+        weight_matrix = np.array([weights_present, weights_absent]).transpose()
+        return cls(
+            motif_id,
+            n_matches=int(n_matches),
+            tokenized_genes=tokenized_genes,
+            gwm=weight_matrix,
+            threshold=float(threshold)
+            )
 
 
     def calulate_gene_probabilities(self, min_prob=0.001):
@@ -52,7 +72,7 @@ class SubclusterMotif:
             self.gwm[i][0] if gene in cluster else self.gwm[i][1]
             for i, gene in enumerate(self.tokenized_genes)
             )
-        return score
+        return round(score, 3)
 
     def _filter_low_probabilities(self, min_prob):
         """Removes genes with probabilities below min_prob from the motif."""
@@ -71,8 +91,7 @@ class SubclusterMotif:
         matches = self.matches.values()
         scores = [self.calculate_score(match) for match in matches]
         threshold = min(scores)
-        # Round up to 3 decimal places
-        return np.ceil(threshold * 1000) / 1000
+        return threshold
 
     def _calculate_weight_matrix(self, background_counts, n_clusters):
         """Calculates the weight matrix for the motif."""

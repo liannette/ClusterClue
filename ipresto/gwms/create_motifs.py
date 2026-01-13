@@ -92,7 +92,7 @@ def generate_subcluster_motifs(
         for mm, mgc, ct, mgp, in hyperparams:
             subcluster_motifs = build_motif_gwms(subcluster_motifs, gene_bg_counts, n_clusters, mm, mgc, ct, mgp, subout_dirpath)
 
-            motif_filepath = subout_dirpath / f"GWMs_mm{mm}_mgc{mgc}_ct{int(ct * 100)}_mgp{int(mgp * 100)}.txt"
+            motif_filepath = subout_dirpath / f"GWMs_k{k}_mm{mm}_mgc{mgc}_ct{int(ct * 100)}_mgp{int(mgp * 100)}.txt"
             write_motif_gwms(subcluster_motifs, motif_filepath)
             motif_filepaths.append(motif_filepath)
 

@@ -6,6 +6,7 @@ from ipresto.clusters.orchestrator import PreprocessOrchestrator
 from ipresto.presto_stat.orchestrator import StatOrchestrator
 from ipresto.presto_top.orchestrator import TopOrchestrator
 from ipresto.gwms.create_motifs import generate_subcluster_motifs
+from ipresto.gwms.evaluate_motifs import select_best_motif_set
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,8 @@ class IprestoPipeline:
         top_feat_num,
         top_min_feat_score,
         k_values,
+        reference_subclusters_filepath,
+        reference_gbks_dirpath,
         cores,
         verbose,
         log_queue
@@ -121,13 +124,29 @@ class IprestoPipeline:
         top_matches_filepath = top_dir_path / "matches_per_topic_filtered.txt"
 
         gwm_dirpath = out_dir_path / "motif_gwms"
-        generate_subcluster_motifs(
+        motifs_filepaths = generate_subcluster_motifs(
             clusters_file_path,
             stat_matches_filepath,
             top_matches_filepath,
             k_values,
             gwm_dirpath
         )
+
+        # select best motifs based on evaluation (to be implemented)
+        evaluation_dirpath = gwm_dirpath / "evaluation"
+
+        select_best_motif_set(
+            motifs_filepaths=motifs_filepaths,
+            output_dirpath=evaluation_dirpath,
+            reference_subclusters_filepath=reference_subclusters_filepath,
+            reference_gbks_dirpath=reference_gbks_dirpath,
+            hmm_file_path=hmm_file_path,
+            max_domain_overlap=max_domain_overlap,
+            cores=cores,
+            verbose=verbose,
+            log_queue=log_queue,
+        )
+
 
         end_time = time.time()
         elapsed_time = end_time - start_time
