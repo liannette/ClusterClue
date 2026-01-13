@@ -41,65 +41,34 @@ def kmeans_clustering(X, k):
     return kmeans.labels_
 
 
-def collapse_grouped_matches(module2labels, modules2bgcs):
-    collapsed_matches = defaultdict(lambda: defaultdict(set))
+def collapse_grouped_matches(module2labels, module2bgcs):
+    """
+    Collapses matches per label and per BGC
+    """
+    label_bgc_genes = defaultdict(lambda: defaultdict(set))
     for module, label in module2labels.items():
-        for bgc_id in modules2bgcs[module]:
-            collapsed_matches[label][bgc_id].update(module)
-
-    label2matches = defaultdict(list)
-    for label, sc_match in collapsed_matches.items():
-        for bgc_id, module in sc_match.items():
-            sc_match = (bgc_id, tuple(sorted(module)))
-            label2matches[label].append(sc_match)
-
-    return label2matches
+        for bgc_id in module2bgcs[module]:
+            label_bgc_genes[label][bgc_id].update(module)
+    return label_bgc_genes
 
 
-def write_matches_per_group(matches_per_label, output_filepath):
+def write_matches_per_group(subcluster_motifs, output_filepath):
     with open(output_filepath, "w") as f:
-        for label in sorted(matches_per_label.keys()):
-            matches = matches_per_label[label]
-            matches.sort(key=lambda x: x[0]) # sort by bgc_id
-            f.write(f"#motif: {label}, n_matches: {len(matches)}\n")
-            for bgc_id, module in matches:
-                f.write(f"{label}\t{bgc_id}\t{','.join(module)}\n")
+        for motif_id in sorted(subcluster_motifs.keys()):
+            motif = subcluster_motifs[motif_id]
+            f.write(f"#motif: {motif_id}, n_matches: {motif.n_matches}\n")
+            # sort by bgc_id
+            for bgc_id in sorted(motif.matches):
+                module = sorted(motif.matches[bgc_id])
+                f.write(f"{motif_id}\t{bgc_id}\t{','.join(module)}\n")
 
-
-def calulate_gene_probabilities(label2matches, min_prob):
-    label2geneprobs = dict()
-    for label, matches in label2matches.items():
-        gene_probs = []
-        # count gene occurrences
-        gene_counter = Counter()
-        for bgc_id, module in matches:
-            gene_counter.update(set(module))
-        # calculate probabilities
-        n_matches = len(matches)
-        for gene, count in gene_counter.items():
-            prob = count / n_matches
-            # filter by min_prob
-            if prob >= min_prob:
-                gene_probs.append((gene, prob))
-        # sort genes by probability
-        gene_probs.sort(key=lambda x: x[1], reverse=True)
-        label2geneprobs[label] = gene_probs
-    return label2geneprobs
-
-
-def write_gene_probabilities(label2geneprobs, label2matches, output_filepath):
+def write_gene_probabilities(subcluster_motifs, output_filepath):
     with open(output_filepath, "w") as outfile:
-        for label in sorted(label2geneprobs.keys()):
-            n_matches = len(label2matches[label])
-            gene_probs = label2geneprobs[label]
-            if len(gene_probs) > 0:
-                genes, probs = list(zip(*gene_probs))
-            else:
-                genes, probs = [], []
-
-            outfile.write(f"#motif: {label}, n_matches: {n_matches}\n")
-            outfile.write(f"{'\t'.join(genes)}\n")
-            outfile.write(f"{'\t'.join([str(round(p, 3)) for p in probs])}\n")
+        for motif_id in sorted(subcluster_motifs.keys()):
+            motif = subcluster_motifs[motif_id]
+            outfile.write(f"#motif: {motif_id}, n_matches: {len(motif.matches)}\n")
+            outfile.write(f"{'\t'.join(motif.tokenized_genes)}\n")
+            outfile.write(f"{'\t'.join([str(round(p, 3)) for p in motif.probabilities])}\n")
 
 
 def cluster_matches_kmeans(matches, k, output_dirpath):
@@ -121,29 +90,26 @@ def cluster_matches_kmeans(matches, k, output_dirpath):
     module2labels = {m: f"M{label+1:0{padding}d}" for m, label in zip(modules, labels)}
 
     # collapse matches per BGC and per label
-    label2matches = collapse_grouped_matches(module2labels, module2bgcs)
-    
+    label_to_bgc_matches = collapse_grouped_matches(module2labels, module2bgcs)
+
+    # Now, create SubclusterMotif objects per label
+    subcluster_motifs = dict()
+    for label, bgc_match in label_to_bgc_matches.items():
+        motif = SubclusterMotif(
+            motif_id=label,
+            matches={bgc_id: sorted(genes) for bgc_id, genes in bgc_match.items()}
+            )
+        motif.calulate_gene_probabilities()
+        subcluster_motifs[label] = motif
+
+
     # write clustered matches to file
     clustered_matches_filepath = output_dirpath / "motif_matches.txt"
-    write_matches_per_group(label2matches, clustered_matches_filepath)
+    write_matches_per_group(subcluster_motifs, clustered_matches_filepath)
     logger.info(f"Wrote clustered matches to {clustered_matches_filepath}")
 
-    # calculate the gene probabilities for each group
-    label2geneprobs = calulate_gene_probabilities(label2matches, min_prob=0.001)
-
     gene_probs_filepath = output_dirpath / "motif_gene_probabilities.txt"
-    write_gene_probabilities(label2geneprobs, label2matches, gene_probs_filepath)
+    write_gene_probabilities(subcluster_motifs, gene_probs_filepath)
     logger.info(f"Wrote gene probabilities to {gene_probs_filepath}")
-
-    # create SubclusterMotif objects
-    subcluster_motifs = dict()
-    for label in sorted(label2geneprobs):
-        n_matches = len(label2matches[label])
-        subcluster_motifs[label] = SubclusterMotif(
-            motif_id=label,
-            n_matches=n_matches,
-            tokenised_genes=[gene for gene, prob in label2geneprobs[label]],
-            probabilities=[prob for gene, prob in label2geneprobs[label]],
-            )
 
     return subcluster_motifs

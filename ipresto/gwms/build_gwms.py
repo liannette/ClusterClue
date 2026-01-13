@@ -20,13 +20,21 @@ def remove_low_probabilities(motif, min_probability):
     """
     filtered_genes = []
     filtered_probabilities = []
-    for gene, prob in zip(motif.tokenised_genes, motif.probabilities):
+    for gene, prob in zip(motif.tokenized_genes, motif.probabilities):
         if prob >= min_probability:
             filtered_genes.append(gene)
             filtered_probabilities.append(prob)
-    motif.tokenised_genes = filtered_genes
+    motif.tokenized_genes = filtered_genes
     motif.probabilities = filtered_probabilities
     return motif
+
+
+def create_probability_matrix(probabilities):
+    """Creates a propability matrix of the tokenised genes"""
+    prob_matrix = []
+    for prob in probabilities:
+        prob_matrix.append([prob, 1-prob])
+    return np.array(prob_matrix)
 
 
 def calculate_weight_matrix(probabilities, background_probabilities):
@@ -37,15 +45,7 @@ def calculate_weight_matrix(probabilities, background_probabilities):
     with np.errstate(divide='ignore'): # ignore log2(0) warnings
         weight_matrix = np.log2(prob_matrix / bg_prob_matrix)
     return weight_matrix
-
-
-def create_probability_matrix(probabilities):
-    """Creates a propability matrix of the tokenised genes"""
-    prob_matrix = []
-    for prob in probabilities:
-        prob_matrix.append([prob, 1-prob])
-    return np.array(prob_matrix)
-
+    
 
 def build_motif_gwms(
     subcluster_motifs,
@@ -69,10 +69,10 @@ def build_motif_gwms(
     filtered_motifs = dict()
     for motif in subcluster_motifs.values():
         # remove probabilities below the min probability threshold
-        motif = remove_low_probabilities(motif, min_gene_prob)
+        motif._filter_low_probabilities(min_gene_prob)
 
         # check if motif passes filter
-        if len(motif.tokenised_genes) < 2:
+        if len(motif.tokenized_genes) < 2:
             n_low_genes += 1
             continue
         if not passes_min_core_genes(motif.probabilities, min_core_genes, core_threshold):
@@ -82,8 +82,8 @@ def build_motif_gwms(
             n_low_matches += 1
             continue
 
-        bg_probs = [background_counts[gene]/n_clusters for gene in motif.tokenised_genes]
-        motif.gwm = calculate_weight_matrix(motif.probabilities, bg_probs)
+        motif.generate_gwm_with_threshold(background_counts, n_clusters)
+
         filtered_motifs[motif.motif_id] = motif
 
     n_initial = len(subcluster_motifs)
