@@ -110,14 +110,11 @@ def build_motif_gwms(
         f"Motifs removed due to low matches (<{min_matches}): {n_low_matches} "
         f"({p_low_matches:.2f}%)"
         )
-
-    # write the gene weight matrices to the output file
-    ct = int(core_threshold * 100)
-    mgp = int(min_gene_prob * 100)
-    filename = f"GWMs_mm{min_matches}_mgc{min_core_genes}_ct{ct}_mgp{mgp}.txt"
-    gwm_filepath = out_dirpath / filename
-    with open(gwm_filepath, "w") as outfile:
-        for motif in filtered_motifs.values():
-            outfile.write(motif.gwm_to_txt())
-
     return filtered_motifs
+
+
+def write_motif_gwms(motifs, out_filepath):
+    with open(out_filepath, "w") as outfile:
+        for motif in motifs.values():
+            outfile.write(motif.gwm_to_txt())
+    logger.info(f"Wrote Motif GWMs to {out_filepath}")

@@ -6,7 +6,7 @@ from pathlib import Path
 from ipresto.clusters.utils import read_clusters
 from ipresto.gwms.create.combine_matches import combine_presto_matches
 from ipresto.gwms.create.cluster_matches import cluster_matches_kmeans
-from ipresto.gwms.create.build_gwms import build_motif_gwms
+from ipresto.gwms.create.build_gwms import build_motif_gwms, write_motif_gwms
 
 
 logger = logging.getLogger(__name__)
@@ -65,6 +65,8 @@ def generate_subcluster_motifs(
     write_gene_background_count(gene_bg_counts, n_clusters, bg_counts_filepath)
     logger.info(f"Wrote gene background counts to {bg_counts_filepath}")
 
+    motif_filepaths = []
+    
     for k in k_values:
         subout_dirpath = out_dirpath / f"kmeans_{k}"
         subout_dirpath.mkdir(parents=True, exist_ok=True)
@@ -90,3 +92,8 @@ def generate_subcluster_motifs(
         for mm, mgc, ct, mgp, in hyperparams:
             subcluster_motifs = build_motif_gwms(subcluster_motifs, gene_bg_counts, n_clusters, mm, mgc, ct, mgp, subout_dirpath)
 
+            motif_filepath = subout_dirpath / f"GWMs_mm{mm}_mgc{mgc}_ct{int(ct * 100)}_mgp{int(mgp * 100)}.txt"
+            write_motif_gwms(subcluster_motifs, motif_filepath)
+            motif_filepaths.append(motif_filepath)
+
+    return motif_filepaths
