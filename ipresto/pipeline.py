@@ -2,10 +2,10 @@ import time
 import logging
 from pathlib import Path
 
-from ipresto.preprocess.orchestrator import PreprocessOrchestrator
+from ipresto.clusters.orchestrator import PreprocessOrchestrator
 from ipresto.presto_stat.orchestrator import StatOrchestrator
 from ipresto.presto_top.orchestrator import TopOrchestrator
-from ipresto.gwms.orchestrator import generate_subcluster_motifs
+from ipresto.gwms.create_motifs import generate_subcluster_motifs
 
 logger = logging.getLogger(__name__)
 
@@ -128,7 +128,6 @@ class IprestoPipeline:
             k_values,
             gwm_dirpath
         )
-
 
         end_time = time.time()
         elapsed_time = end_time - start_time

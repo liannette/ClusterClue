@@ -1,8 +1,8 @@
 import logging
 from pathlib import Path
-from ipresto.preprocess.tokenize.process_domtable import process_domtables
-from ipresto.preprocess.tokenize.process_fasta import process_fastas
-from ipresto.preprocess.tokenize.process_gbk import process_gbks, write_gbk_paths_file
+from ipresto.clusters.tokenize.process_domtable import process_domtables
+from ipresto.clusters.tokenize.process_fasta import process_fastas
+from ipresto.clusters.tokenize.process_gbk import process_gbks, write_gbk_paths_file
 
 logger = logging.getLogger(__name__)
 

@@ -2,10 +2,11 @@ import logging
 from collections import Counter
 from itertools import product
 from pathlib import Path
-from ipresto.gwms.combine_matches import combine_presto_matches
-from ipresto.gwms.cluster_matches import cluster_matches_kmeans
-from ipresto.preprocess.utils import read_clusters
-from ipresto.gwms.build_gwms import build_motif_gwms
+
+from ipresto.clusters.utils import read_clusters
+from ipresto.gwms.create.combine_matches import combine_presto_matches
+from ipresto.gwms.create.cluster_matches import cluster_matches_kmeans
+from ipresto.gwms.create.build_gwms import build_motif_gwms
 
 
 logger = logging.getLogger(__name__)

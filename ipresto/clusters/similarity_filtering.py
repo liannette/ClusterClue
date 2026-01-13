@@ -10,7 +10,7 @@ import networkx as nx
 import logging
 from sympy import binomial as ncr
 from ipresto.utils import worker_init
-from ipresto.preprocess.utils import (
+from ipresto.clusters.utils import (
     format_cluster_to_string,
     read_clusters,
     write_gene_counts,

@@ -3,16 +3,16 @@ import logging
 from pathlib import Path
 from typing import List, Optional
 from multiprocessing import Queue
-from ipresto.preprocess.utils import (
+from ipresto.clusters.utils import (
     count_gene_occurrences,
     read_clusters_and_remove_empty,
     write_clusters,
     write_gene_counts,
 )
-from ipresto.preprocess.tokenize.orchestrator import TokenizeOrchestrator
-from ipresto.preprocess.domain_filtering import perform_domain_filtering
-from ipresto.preprocess.similarity_filtering import filter_similar_clusters
-from ipresto.preprocess.infrequent_genes import remove_infrequent_genes
+from ipresto.clusters.tokenize.orchestrator import TokenizeOrchestrator
+from ipresto.clusters.domain_filtering import perform_domain_filtering
+from ipresto.clusters.similarity_filtering import filter_similar_clusters
+from ipresto.clusters.infrequent_genes import remove_infrequent_genes
 
 logger = logging.getLogger(__name__)
 
