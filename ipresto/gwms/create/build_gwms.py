@@ -55,13 +55,7 @@ def build_motif_gwms(
     min_core_genes,
     core_threshold,
     min_gene_prob,
-    out_dirpath,
     ):
-    logger.info(
-        f"Building GWMs for min_matches={min_matches}, "
-        f"min_core_genes={min_core_genes}, core_threshold={core_threshold}, "
-        f"min_gene_prob={min_gene_prob}...")
-
     n_low_matches = 0
     n_low_core_genes = 0
     n_low_genes = 0
@@ -95,20 +89,10 @@ def build_motif_gwms(
     
 
     logger.info(
-        f"Total motifs after filtering: {n_filtered} ({p_filtered:.2f}% of "
-        f"initial {n_initial} motifs )"
-        )
-    logger.info(
-        f"Motifs removed due to low gene number (<2 genes with prob >= "
-        f"{min_gene_prob}): {n_low_genes} ({p_low_genes:.2f}%)"
-        )
-    logger.info(
-        f"Motifs removed due to low core genes (<{min_core_genes} genes with "
-        f"prob >= {core_threshold}): {n_low_core_genes} ({p_low_core_genes:.2f}%)"
-        )
-    logger.info(
-        f"Motifs removed due to low matches (<{min_matches}): {n_low_matches} "
-        f"({p_low_matches:.2f}%)"
+        f"{n_filtered}/{n_initial} ({p_filtered:.2f}%) motifs passed filtering criteria. " 
+        f"Removed {n_low_genes} ({p_low_genes:.2f}%) due to low gene number, "
+        f"{n_low_core_genes} ({p_low_core_genes:.2f}%) due to low core genes, "
+        f"and {n_low_matches} ({p_low_matches:.2f}%) due to low matches."
         )
     return filtered_motifs
 
@@ -117,4 +101,4 @@ def write_motif_gwms(motifs, out_filepath):
     with open(out_filepath, "w") as outfile:
         for motif in motifs.values():
             outfile.write(motif.gwm_to_txt())
-    logger.info(f"Wrote Motif GWMs to {out_filepath}")
+    logger.info(f"Wrote motif gene weight matrices to {out_filepath}")

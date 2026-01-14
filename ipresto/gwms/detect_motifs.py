@@ -1,4 +1,5 @@
 import logging
+from collections import defaultdict
 from dataclasses import dataclass
 from ipresto.gwms.subcluster_motif import SubclusterMotif
 
@@ -9,7 +10,7 @@ class MotifHit:
     bgc_id: str
     motif_id: str
     score: float
-    genes: set
+    tokenized_genes: set
 
 def parse_clusters_file(clusters_file):
     with open(clusters_file, "r") as infile:
@@ -50,7 +51,7 @@ def detect_motifs(clusters_filepath, motifs_filepath, output_filepath):
 
     logger.info(f"Loaded {len(clusters)} biosynthetic gene clusters and {len(motifs)} subcluster motifs")
 
-    motif_hits = []
+    motif_hits = defaultdict(list)
     for bgc_id, bgc_genes in clusters.items():
         for motif in motifs.values():
             score = motif.calculate_score(bgc_genes)
@@ -61,11 +62,10 @@ def detect_motifs(clusters_filepath, motifs_filepath, output_filepath):
             if len(common_genes) < 2:
                 continue
 
-            motif_hits.append(
+            motif_hits[bgc_id].append(
                 MotifHit(bgc_id, motif.motif_id, score, common_genes)
                 )
-    logger.info(f"Identified {len(motif_hits)} motif hits meeting threshold criteria")
-
+    logger.info(f"Identified {sum(len(v) for v in motif_hits.values())} motif hits meeting threshold criteria")
 
     with open(output_filepath, "w") as outfile:
         # print header
@@ -79,17 +79,18 @@ def detect_motifs(clusters_filepath, motifs_filepath, output_filepath):
         ]
         print("\t".join(header_fields), file=outfile)
         # print lines
-        for motif_hit in motif_hits:
-            n_training = motifs[motif_hit.motif_id].n_matches
-            threshold = motifs[motif_hit.motif_id].threshold
-            line_fields = [
-                motif_hit.bgc_id,
-                motif_hit.motif_id,
-                str(n_training),
-                str(threshold),
-                str(motif_hit.score),
-                ",".join(sorted(motif_hit.genes)),
-            ]
+        for bgc_id, hits in motif_hits.items():
+            for motif_hit in hits:
+                n_training = motifs[motif_hit.motif_id].n_matches
+                threshold = motifs[motif_hit.motif_id].threshold
+                line_fields = [
+                    motif_hit.bgc_id,
+                    motif_hit.motif_id,
+                    str(n_training),
+                    str(threshold),
+                    str(motif_hit.score),
+                    ",".join(sorted(motif_hit.tokenized_genes)),
+                ]
             print("\t".join(line_fields), file=outfile)
 
     logger.info(f"Results written to {output_filepath}")

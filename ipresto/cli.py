@@ -1,17 +1,17 @@
-
-# Python 3.12 issues a DeprecationWarning when using os.fork() in a multi-threaded process,
-# because forking with active threads can cause deadlocks due to lock states not being 
-# safely inherited by the child process. To avoid this, we explicitly set the 
-# multiprocessing start method to 'spawn' which creates a fresh Python interpreter process
 from multiprocessing import set_start_method
-set_start_method("spawn", force=True)
 from multiprocessing import cpu_count, Queue, Process
 import sys
 import argparse
 import logging
 from pathlib import Path
-from ipresto.pipeline import IprestoPipeline
+from ipresto.pipeline import create_new_motifs
 from ipresto.utils import listener_process, worker_configurer
+
+# Python 3.12 issues a DeprecationWarning when using os.fork() in a multi-threaded process,
+# because forking with active threads can cause deadlocks due to lock states not being 
+# safely inherited by the child process. To avoid this, we explicitly set the 
+# multiprocessing start method to 'spawn' which creates a fresh Python interpreter process
+set_start_method("spawn", force=True)
 
 def get_commands():
     parser = argparse.ArgumentParser(
@@ -366,7 +366,7 @@ def main():
     logger.info("Command: %s", " ".join(sys.argv))
 
     # Execute the main pipeline with provided arguments
-    IprestoPipeline().run(
+    create_new_motifs(
         cmd.out_dir_path,
         cmd.gbk_dir_path,
         cmd.existing_clusterfile,

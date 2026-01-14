@@ -43,7 +43,7 @@ class SubclusterMotif:
             )
 
 
-    def calulate_gene_probabilities(self, min_prob=0.001):
+    def calculate_gene_probabilities(self, min_prob=0.001):
 
         gene_probs = []
         # count gene occurrences across matches

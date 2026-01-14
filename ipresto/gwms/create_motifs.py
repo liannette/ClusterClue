@@ -71,29 +71,37 @@ def generate_subcluster_motifs(
         subout_dirpath = out_dirpath / f"kmeans_{k}"
         subout_dirpath.mkdir(parents=True, exist_ok=True)
         
-        logger.info(f"Clustering subcluster matches into {k} motifs using k-means")
         subcluster_motifs = cluster_matches_kmeans(combined_matches, k, subout_dirpath)
         
-        logger.info("Creating GWMs with different parameter combinations")
-        # min_matches = (5, 25, 50)
-        # min_core_genes = (1, 2)
-        # core_threshold = (0.6, 0.7, 0.8)
-        # min_gene_prob = (0.1, 0.3, 0.5)
-        min_matches = (5,)
-        min_core_genes = (1,)
-        core_threshold = (0.6,)
-        min_gene_prob = (0.1,)
+        # TODO: make these hyperparameters configurable
+        min_matches = (5, 10, 20)
+        min_core_genes = (1, 2)
+        core_threshold = (0.6, 0.7, 0.8)
+        min_gene_prob = (0.1, 0.2, 0.3)
         hyperparams = product(
             min_matches,
             min_core_genes,
             core_threshold,
             min_gene_prob,
         )
-        for mm, mgc, ct, mgp, in hyperparams:
-            subcluster_motifs = build_motif_gwms(subcluster_motifs, gene_bg_counts, n_clusters, mm, mgc, ct, mgp, subout_dirpath)
+        for mm, mgc, ct, mgp in hyperparams:
+            logger.info(
+                f"Building GWMs for k={k}, min_matches={mm}, "
+                f"min_core_genes={mgc}, core_threshold={ct}, "
+                f"min_gene_prob={mgp}...")
+                
+            motifs_with_gwms = build_motif_gwms(
+                subcluster_motifs, 
+                gene_bg_counts, 
+                n_clusters, 
+                mm, 
+                mgc, 
+                ct, 
+                mgp
+                )
 
             motif_filepath = subout_dirpath / f"GWMs_k{k}_mm{mm}_mgc{mgc}_ct{int(ct * 100)}_mgp{int(mgp * 100)}.txt"
-            write_motif_gwms(subcluster_motifs, motif_filepath)
+            write_motif_gwms(motifs_with_gwms, motif_filepath)
             motif_filepaths.append(motif_filepath)
 
     return motif_filepaths

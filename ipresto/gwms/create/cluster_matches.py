@@ -78,11 +78,12 @@ def cluster_matches_kmeans(matches, k, output_dirpath):
     for bgc_id, module in matches:
         module2bgcs[module].append(bgc_id)
     modules = list(module2bgcs.keys())
-    logger.info(f"Total number of unique subcluster modules: {len(modules)}")
+
+    logger.info(f"Clustering {len(modules)} unique subcluster modules using k-means")
 
     # create sparse matrix
     X = create_sparse_matrix(modules)
-    logger.info(f"Prepared sparse matrix for clustering: {X.shape[0]} rows (modules), {X.shape[1]} features (genes)")
+    logger.info(f"Prepared sparse matrix with {X.shape[0]} rows (modules) and {X.shape[1]} features (genes)")
 
     # perform k-means clustering
     labels = kmeans_clustering(X, k)
@@ -99,17 +100,15 @@ def cluster_matches_kmeans(matches, k, output_dirpath):
             motif_id=label,
             matches={bgc_id: sorted(genes) for bgc_id, genes in bgc_match.items()}
             )
-        motif.calulate_gene_probabilities()
+        motif.calculate_gene_probabilities()
         subcluster_motifs[label] = motif
 
 
     # write clustered matches to file
     clustered_matches_filepath = output_dirpath / "motif_matches.txt"
     write_matches_per_group(subcluster_motifs, clustered_matches_filepath)
-    logger.info(f"Wrote clustered matches to {clustered_matches_filepath}")
-
     gene_probs_filepath = output_dirpath / "motif_gene_probabilities.txt"
     write_gene_probabilities(subcluster_motifs, gene_probs_filepath)
-    logger.info(f"Wrote gene probabilities to {gene_probs_filepath}")
+    logger.info(f"Wrote clustered matches to {clustered_matches_filepath} and gene probabilities to {gene_probs_filepath}")
 
     return subcluster_motifs

@@ -74,11 +74,11 @@ class PreprocessOrchestrator:
         gene_counts_file_path = out_dir / "clusters_all_domains_gene_counts.txt"
         if clusters_file_path.is_file():
             logger.info(f"Skipping tokenisation step, because the file already exists: {clusters_file_path}")
-        elif existing_clusterfile:
-            logger.info(f"Using provided file of tokenized BGCs: {existing_clusterfile}.")
-            clusters = read_clusters_and_remove_empty(existing_clusterfile, min_genes, verbose)
-            write_clusters(clusters, clusters_file_path)
-            write_gene_counts(count_gene_occurrences(clusters), gene_counts_file_path)
+        # elif existing_clusterfile:
+        #     logger.info(f"Using provided file of tokenized BGCs: {existing_clusterfile}.")
+        #     clusters = read_clusters_and_remove_empty(existing_clusterfile, min_genes, verbose)
+        #     write_clusters(clusters, clusters_file_path)
+        #     write_gene_counts(count_gene_occurrences(clusters), gene_counts_file_path)
         else:
             TokenizeOrchestrator().run(
                 clusters_file_path,
@@ -95,29 +95,29 @@ class PreprocessOrchestrator:
             )
 
         # Step 2: Filter non-biosynthetic protein domains
-        if domain_filtering is False:
-            logger.info("Skipping domain filtering, because it has been turned off.")
-        else:
-            out_file_path = out_dir / "clusters_biosyn_domains.csv"
-            if out_file_path.is_file():
-                logger.info(f"Skipping domain filtering, because the file already exists: {out_file_path}")
-            else:
-                domain_filtering_file_path = (
-                    Path(__file__).parent.parent.parent
-                    / "data"
-                    / "biosynthetic_domains.txt"
-                )
-                counts_file_path = out_dir / "clusters_biosyn_domains_gene_counts.txt"
-                perform_domain_filtering(
-                    clusters_file_path,
-                    domain_filtering_file_path,
-                    out_file_path,
-                    counts_file_path,
-                    min_genes,
-                    cores,
-                    verbose,
-                )
-            clusters_file_path = out_file_path
+        # if domain_filtering is False:
+        #     logger.info("Skipping domain filtering, because it has been turned off.")
+        # else:
+        #     out_file_path = out_dir / "clusters_biosyn_domains.csv"
+        #     if out_file_path.is_file():
+        #         logger.info(f"Skipping domain filtering, because the file already exists: {out_file_path}")
+        #     else:
+        #         domain_filtering_file_path = (
+        #             Path(__file__).parent.parent.parent
+        #             / "data"
+        #             / "biosynthetic_domains.txt"
+        #         )
+        #         counts_file_path = out_dir / "clusters_biosyn_domains_gene_counts.txt"
+        #         perform_domain_filtering(
+        #             clusters_file_path,
+        #             domain_filtering_file_path,
+        #             out_file_path,
+        #             counts_file_path,
+        #             min_genes,
+        #             cores,
+        #             verbose,
+        #         )
+        #     clusters_file_path = out_file_path
 
         # Step 3: Clean clusters for generation of nes STAT/TOP models
         if similarity_filtering_flag is False:
