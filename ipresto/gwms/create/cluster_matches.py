@@ -27,9 +27,7 @@ def _get_auto_batch_size(n_samples):
     return batch
 
 
-def kmeans_clustering(X, k):
-    batch_size = _get_auto_batch_size(X.shape[0])
-    logger.info(f"Clustering with k={k}, batch_size={batch_size}...")
+def kmeans_clustering(X, k, batch_size):
     kmeans = MiniBatchKMeans(
         n_clusters=int(k),
         batch_size=batch_size,
@@ -79,14 +77,15 @@ def cluster_matches_kmeans(matches, k, output_dirpath):
         module2bgcs[module].append(bgc_id)
     modules = list(module2bgcs.keys())
 
-    logger.info(f"Clustering {len(modules)} unique subcluster modules using k-means")
-
-    # create sparse matrix
-    X = create_sparse_matrix(modules)
-    logger.info(f"Prepared sparse matrix with {X.shape[0]} rows (modules) and {X.shape[1]} features (genes)")
-
     # perform k-means clustering
-    labels = kmeans_clustering(X, k)
+    X = create_sparse_matrix(modules)
+    batch_size = _get_auto_batch_size(X.shape[0])
+    logger.info(
+        f"Clustering {X.shape[0]} unique subcluster modules with {X.shape[1]} "
+        f"unique tokenised genes (k={k}, batch_size={batch_size})..."
+        )
+    labels = kmeans_clustering(X, k, batch_size)
+
     padding = len(str(k)) # Calculate padding based on k
     module2labels = {m: f"M{label+1:0{padding}d}" for m, label in zip(modules, labels)}
 
@@ -106,9 +105,9 @@ def cluster_matches_kmeans(matches, k, output_dirpath):
 
     # write clustered matches to file
     clustered_matches_filepath = output_dirpath / "motif_matches.txt"
-    write_matches_per_group(subcluster_motifs, clustered_matches_filepath)
     gene_probs_filepath = output_dirpath / "motif_gene_probabilities.txt"
+    write_matches_per_group(subcluster_motifs, clustered_matches_filepath)
     write_gene_probabilities(subcluster_motifs, gene_probs_filepath)
-    logger.info(f"Wrote clustered matches to {clustered_matches_filepath} and gene probabilities to {gene_probs_filepath}")
+    logger.info(f"Wrote clustered subcluster predictions to {clustered_matches_filepath} and gene probabilities to {gene_probs_filepath}")
 
     return subcluster_motifs

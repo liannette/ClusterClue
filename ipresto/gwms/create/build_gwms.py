@@ -89,7 +89,7 @@ def build_motif_gwms(
     
 
     logger.info(
-        f"{n_filtered}/{n_initial} ({p_filtered:.2f}%) motifs passed filtering criteria. " 
+        f"Build {n_filtered} ({p_filtered:.2f}%) gene weight matrices for {n_initial} motifs. " 
         f"Removed {n_low_genes} ({p_low_genes:.2f}%) due to low gene number, "
         f"{n_low_core_genes} ({p_low_core_genes:.2f}%) due to low core genes, "
         f"and {n_low_matches} ({p_low_matches:.2f}%) due to low matches."
@@ -99,6 +99,7 @@ def build_motif_gwms(
 
 def write_motif_gwms(motifs, out_filepath):
     with open(out_filepath, "w") as outfile:
-        for motif in motifs.values():
+        for motif_id in sorted(motifs):
+            motif = motifs[motif_id]
             outfile.write(motif.gwm_to_txt())
     logger.info(f"Wrote motif gene weight matrices to {out_filepath}")

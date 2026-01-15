@@ -42,14 +42,40 @@ def parse_motifs_file(motifs_file):
     return subcluster_motifs
 
 
-def detect_motifs(clusters_filepath, motifs_filepath, output_filepath):
+def write_motif_hits(motif_hits, output_filepath):
 
-    logger.info(f"Starting motif detection: scanning {clusters_filepath} against subcluster motifs in {motifs_filepath}")
+    with open(output_filepath, "w") as outfile:
+        # print header
+        header_fields = [
+            "bgc_id",
+            "motif_id",
+            "n_training_matches",
+            "score_threshold",
+            "score",
+            "hit_genes",
+        ]
+        print("\t".join(header_fields), file=outfile)
+        # print lines
+        for bgc_id, hits in motif_hits.items():
+            for motif_hit in hits:
+                n_training_matches = motifs[motif_hit.motif_id].n_matches
+                threshold = motifs[motif_hit.motif_id].threshold
+                line_fields = [
+                    motif_hit.bgc_id,
+                    motif_hit.motif_id,
+                    str(n_training_matches),
+                    str(threshold),
+                    str(motif_hit.score),
+                    ",".join(sorted(motif_hit.tokenized_genes)),
+                ]
+            print("\t".join(line_fields), file=outfile)
+
+
+def detect_motifs(clusters_filepath, motifs_filepath, output_filepath):
 
     clusters = parse_clusters_file(clusters_filepath)
     motifs = parse_motifs_file(motifs_filepath)
-
-    logger.info(f"Loaded {len(clusters)} biosynthetic gene clusters and {len(motifs)} subcluster motifs")
+    logger.info(f"Loaded {len(clusters)} clusters from {clusters_filepath} and {len(motifs)} subcluster motifs from {motifs_filepath}   ")
 
     motif_hits = defaultdict(list)
     for bgc_id, bgc_genes in clusters.items():
@@ -58,41 +84,16 @@ def detect_motifs(clusters_filepath, motifs_filepath, output_filepath):
             if score < motif.threshold:
                 continue
 
-            common_genes = set(motif.tokenized_genes) & bgc_genes
-            if len(common_genes) < 2:
+            hit_genes = set(motif.tokenized_genes) & bgc_genes
+            if len(hit_genes) < 2:
                 continue
 
             motif_hits[bgc_id].append(
-                MotifHit(bgc_id, motif.motif_id, score, common_genes)
+                MotifHit(bgc_id, motif.motif_id, score, hit_genes)
                 )
-    logger.info(f"Identified {sum(len(v) for v in motif_hits.values())} motif hits meeting threshold criteria")
 
-    with open(output_filepath, "w") as outfile:
-        # print header
-        header_fields = [
-            "bgc_id",
-            "motif_id",
-            "n_training",
-            "score_threshold",
-            "score",
-            "genes",
-        ]
-        print("\t".join(header_fields), file=outfile)
-        # print lines
-        for bgc_id, hits in motif_hits.items():
-            for motif_hit in hits:
-                n_training = motifs[motif_hit.motif_id].n_matches
-                threshold = motifs[motif_hit.motif_id].threshold
-                line_fields = [
-                    motif_hit.bgc_id,
-                    motif_hit.motif_id,
-                    str(n_training),
-                    str(threshold),
-                    str(motif_hit.score),
-                    ",".join(sorted(motif_hit.tokenized_genes)),
-                ]
-            print("\t".join(line_fields), file=outfile)
-
-    logger.info(f"Results written to {output_filepath}")
+    logger.info(
+        f"Wrote {sum(len(v) for v in motif_hits.values())} motif hits meeting "
+        f"threshold criteria to {output_filepath}")
 
     return motif_hits

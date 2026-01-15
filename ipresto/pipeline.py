@@ -147,9 +147,8 @@ def create_new_motifs(
     )
 
     # Write best motifs to final output file
-    final_motif_filepath = out_dir_path / "subcluster_motifs.txt"
-    best_motifs = best_motif_filepath.read_text()
-    final_motif_filepath.write_text(best_motifs)
+    final_motif_filepath = gwm_dirpath / "subcluster_motifs.txt"
+    final_motif_filepath.write_text(best_motif_filepath.read_text())
     logger.info(f"Wrote best motif set to {final_motif_filepath}")
 
     end_time = time.time()

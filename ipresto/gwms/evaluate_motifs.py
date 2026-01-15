@@ -136,9 +136,8 @@ def assign_best_hit(row: pd.Series, motif_hits: Dict[str, List[MotifHit]]) -> di
         overlapping_hits.append(
             {
                 "subcluster_id": row["subcluster_id"],
-                "annotated_genes": row["tokenized_genes"],
-                "hit_id": hit.motif_id,
-                "hit_genes": hit.tokenized_genes,
+                "motif_id": hit.motif_id,
+                "motif_hit_genes": hit.tokenized_genes,
                 "n_overlapping_genes": len(overlap),
                 "overlapping_genes": list(overlap),
                 "jaccard": jaccard,
@@ -150,24 +149,23 @@ def assign_best_hit(row: pd.Series, motif_hits: Dict[str, List[MotifHit]]) -> di
 
     if overlapping_hits:
         best_hit = max(overlapping_hits, key=lambda x: x["f1"])
-        alpha = 0.25 # 0.25 moderately penalizes multiple matches
+        alpha = 0.25 # moderately penalize multiple motif hits per subcluster
         n_overlapping_hits = len(overlapping_hits)
         penalized_f1 = calculate_penalized_f1(best_hit["f1"], n_overlapping_hits, alpha)
-        best_hit["n_overlapping_hits>0.1"] = n_overlapping_hits
+        best_hit["n_overlapping_hits"] = n_overlapping_hits
         best_hit["penalized_f1"] = penalized_f1
     else:
         best_hit = {
             "subcluster_id": row["subcluster_id"],
-            "annotated_genes": row["tokenized_genes"],
-            "hit_id": None,
-            "hit_genes": [],
+            "motif_id": None,
+            "motif_hit_genes": [],
             "n_overlapping_genes": 0,
             "overlapping_genes": [],
             "jaccard": 0.0,
             "recall": 0.0,
             "precision": 0.0,
             "f1": 0.0,
-            "n_overlapping_hits>0.1": 0,
+            "n_overlapping_hits": 0,
             "penalized_f1": 0.0,
         }
 
@@ -178,12 +176,11 @@ def add_motif_hits_to_reference_subclusters(
     ref_subclusters: pd.DataFrame,
     motif_hits: Dict[str, List[MotifHit]]
 ) -> pd.DataFrame:
-    ref_subclusters_with_hits = pd.DataFrame(
-        ref_subclusters.apply(
-            lambda row: assign_best_hit(row, motif_hits), axis=1
-        ).tolist()
+    best_hits = pd.DataFrame(
+        ref_subclusters.apply(lambda row: assign_best_hit(row, motif_hits), axis=1).tolist()
     )
-    return ref_subclusters_with_hits
+    return best_hits
+
 
 def calculate_evaluation(ref_subclusters_with_hits: pd.DataFrame) -> tuple:
     scores = ref_subclusters_with_hits[["f1", "penalized_f1"]]
@@ -192,6 +189,20 @@ def calculate_evaluation(ref_subclusters_with_hits: pd.DataFrame) -> tuple:
     avg_f1 = round(avg_scores["f1"], 3)
     avg_penalized_f1 = round(avg_scores["penalized_f1"], 3)
     return avg_f1, avg_penalized_f1
+
+
+def write_motif_file(ref_subclusters: pd.DataFrame, best_motif_set: dict, output_filepath: Path) -> None:
+    """Writes the best motif set hits to a tsv file."""
+    eval_df = ref_subclusters.merge(best_motif_set["best_hits"], on="subcluster_id")
+    eval_df["tokenized_genes"] = eval_df["tokenized_genes"].apply(lambda x: ";".join(x))
+    eval_df["motif_hit_genes"] = eval_df["motif_hit_genes"].apply(lambda x: ";".join(sorted(x)))
+    eval_df["overlapping_genes"] = eval_df["overlapping_genes"].apply(lambda x: ";".join(sorted(x)))
+    eval_df["jaccard"] = eval_df["jaccard"].round(3)
+    eval_df["recall"] = eval_df["recall"].round(3)
+    eval_df["precision"] = eval_df["precision"].round(3)
+    eval_df["f1"] = eval_df["f1"].round(3)
+    eval_df["penalized_f1"] = eval_df["penalized_f1"].round(3)
+    eval_df.to_csv(output_filepath, sep="\t", index=False)
 
 
 def select_best_motif_set(
@@ -238,7 +249,6 @@ def select_best_motif_set(
     motif_hits_dirpath = output_dirpath / "motif_hits"
     motif_hits_dirpath.mkdir(parents=True, exist_ok=True)
     for motifs_filepath in motifs_filepaths:
-        logger.info(f"Detecting motifs using motif file {motifs_filepath}")
         motif_hits_filepath = motif_hits_dirpath / f"motif_hits_{Path(motifs_filepath).stem}.tsv"
         motif_hits = detect_motifs(
             clusters_filepath=clusters_file_path,
@@ -248,12 +258,12 @@ def select_best_motif_set(
 
         # Evaluate motif hits against annotated subclusters
         logger.info("Evaluating motif hits against annotated subclusters")
-        ref_subclusters_with_hits = add_motif_hits_to_reference_subclusters(ref_subclusters, motif_hits)
-
-        avg_f1, avg_penalized_f1 = calculate_evaluation(ref_subclusters_with_hits)
+        best_hits = add_motif_hits_to_reference_subclusters(ref_subclusters, motif_hits)
+        avg_f1, avg_penalized_f1 = calculate_evaluation(best_hits)
         logger.info(f"Average F1-score: {avg_f1}, Average Penalized F1-score: {avg_penalized_f1}")
+        
         evaluation_scores.append({
-            "sc_with_best_hits": ref_subclusters_with_hits,
+            "best_hits": best_hits,
             "f1": avg_f1,
             "penalized_f1": avg_penalized_f1,
             "motif_set": motifs_filepath.stem,
@@ -271,7 +281,7 @@ def select_best_motif_set(
     
     # Save best motif set hits to a tsv file
     best_motif_set_hits_filepath = output_dirpath / "best_motif_set_hits.tsv"
-    best_motif_set["sc_with_best_hits"].to_csv(best_motif_set_hits_filepath, sep="\t", index=False)
-    logger.info(f"Wrote best hits to the reference subclusters to {best_motif_set_hits_filepath}")
+    write_motif_file(ref_subclusters, best_motif_set, best_motif_set_hits_filepath)
+    logger.info(f"Wrote best motif set hits to {best_motif_set_hits_filepath}")
 
     return Path(best_motif_set["motif_file"])

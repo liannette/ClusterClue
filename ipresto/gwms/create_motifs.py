@@ -45,25 +45,21 @@ def generate_subcluster_motifs(
 
     out_dirpath.mkdir(parents=True, exist_ok=True)
 
-    logger.info("Combining subcluster predictions from stat and top method")
     combined_matches_filepath = out_dirpath / "matches.txt"
     combined_matches = combine_presto_matches(
         stat_matches_filepath, 
         top_matches_filepath, 
         combined_matches_filepath
-        )
+    )
 
-    logger.info(f"Reading clusters from {clusters_filepath}")
     clusters = read_clusters(clusters_filepath)
     n_clusters = len(clusters)
-    logger.info(f"Total number of BGCs: {n_clusters}")
+    logger.info(f"Read {n_clusters} tokenized clusters from {clusters_filepath}")
 
     gene_bg_counts = get_gene_background_count(clusters)
-    logger.info(f"Calculated gene background counts across all BGCs for {len(gene_bg_counts)} tokenized genes")
-    
     bg_counts_filepath = out_dirpath / "genes_background_count.txt"
     write_gene_background_count(gene_bg_counts, n_clusters, bg_counts_filepath)
-    logger.info(f"Wrote gene background counts to {bg_counts_filepath}")
+    logger.info(f"Wrote BGCs counts for {len(gene_bg_counts)} unique tokenized genes to {bg_counts_filepath}")
 
     motif_filepaths = []
     

@@ -4,7 +4,7 @@ import logging
 logger = logging.getLogger(__name__)
         
 def read_stat_subcluster_matches(input_filepath):
-    module_matches = []
+    module_matches = set()
     with open(input_filepath, "r") as infile:
         for line in infile:
             # header lines contain bgc_id
@@ -12,19 +12,9 @@ def read_stat_subcluster_matches(input_filepath):
                 bgc_id = line.rstrip()[1:]
             else:
                 module_id, module = line.rstrip().split()
-                module = module.split(",")  # Split modules by comma
-                tokenised_genes = tuple(sorted(module))
-                module_matches.append([bgc_id, tokenised_genes])
+                tokenised_genes = tuple(sorted(module.split(",")))
+                module_matches.add((bgc_id, tokenised_genes))
     return module_matches
-
-
-def _get_genes_from_top_match_line(line):
-    genes = set()
-    match = line.rstrip().split()[2]
-    for gene_and_topic_prob in match.split(","):
-        gene, _ = gene_and_topic_prob.split(":")
-        genes.add(gene)
-    return tuple(sorted(genes))
 
 
 def read_top_subcluster_matches(input_filepath):
@@ -32,41 +22,41 @@ def read_top_subcluster_matches(input_filepath):
     Returns a dict with the subcluster module (tokenised genes) as key 
     and bgc IDs as value
     """
-    module_matches = []
+    module_matches = set()
     with open(input_filepath, "r") as infile:
         for line in infile:
             # skip header lines
             if line.startswith("#"):
                 continue
-            bgc_id = line.split()[3]
-            tokenised_genes = _get_genes_from_top_match_line(line)
+
+            _, _, match, bgc_id, _ = line.rstrip().split()
+
+            tokenised_genes = set()
+            for gene_and_topic_prob in match.split(","):
+                gene, _ = gene_and_topic_prob.split(":")
+                tokenised_genes.add(gene)
+
             # must have at least 2 unique genes
             if len(tokenised_genes) >= 2:
-                module_matches.append([bgc_id, tokenised_genes])
+                module_matches.add((bgc_id, tuple(sorted(tokenised_genes))))
     return module_matches
 
 
-def write_combined_matches(matches, output_filepath):
-    matches.sort(key=lambda x: x[0])
-    with open(output_filepath, "w") as outfile:
-        for bgc_id, mod in matches:
-            outfile.write(f"{bgc_id}\t{','.join(mod)}\n")
+def combine_presto_matches(stat_matches_filepath, top_matches_filepath, output_filepath):
 
-
-def combine_presto_matches(stat_matches_filepath, top_matches_filepath, out_filepath):
-
-    # Load stat subcluster predictions
+    # Load ipresto subcluster predictions
     stat_matches = read_stat_subcluster_matches(stat_matches_filepath)
-    logger.info(f"Loaded {len(stat_matches)} predicted STAT subclusters")
-
-    # Load top subcluster predictions   
     top_matches = read_top_subcluster_matches(top_matches_filepath)
-    logger.info(f"Loaded {len(top_matches)} predicted TOP subclusters")
+    combined_matches = stat_matches | top_matches
 
-    # Combine
-    combined_matches = stat_matches + top_matches
-    logger.info(f"Total predicted subclusters: {len(combined_matches)}")
-    write_combined_matches(combined_matches, out_filepath)
-    logger.info(f"Wrote combined matches to {out_filepath}")
+    # Write combined matches to file
+    with open(output_filepath, "w") as outfile:
+        for bgc_id, mod in sorted(combined_matches):
+            outfile.write(f"{bgc_id}\t{','.join(mod)}\n")
+    
+    logger.info(
+        f"Wrote {len(combined_matches)} ({len(stat_matches)} STAT + "
+        f"{len(top_matches)} TOP) presto subcluster predictions to {output_filepath}"
+        )
 
     return combined_matches
