@@ -1,5 +1,5 @@
 from collections import Counter
-from ipresto.preprocess.utils import (
+from clusterclue.preprocess.utils import (
     count_non_emtpy_genes,
     parse_cluster_line,
     format_cluster_to_string,

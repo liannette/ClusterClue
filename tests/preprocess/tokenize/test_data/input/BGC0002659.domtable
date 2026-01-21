@@ -15,12 +15,3 @@ Radical_SAM_c16      -            140 BGC0002659_gid:_pid:EPC01632.1_loc:1793;32
 SPASM_c22            -             60 BGC0002659_gid:_pid:EPC01632.1_loc:1793;3296;-_4/5 -            500   1.1e-08   35.8   0.0   1   1     2e-11   2.8e-08   34.5   0.0     1    60   391   445   391   445 0.95 -
 SPASM_c46            -             64 BGC0002659_gid:_pid:EPC01632.1_loc:1793;3296;-_4/5 -            500   4.2e-05   23.9   0.0   1   1   5.5e-08   7.5e-05   23.0   0.0     1    63   387   444   387   445 0.87 -
 #
-# Program:         hmmscan
-# Version:         3.3.2 (Nov 2020)
-# Pipeline mode:   SCAN
-# Query file:      ipresto_output/mibig_gbk_3.1_fasta/BGC0002659.fasta
-# Target file:     /lustre/BIF/nobackup/lien002/data/ipresto_data/Pfam_100subs_tc.hmm
-# Option settings: hmmscan -o ipresto_output/mibig_gbk_3.1_domtables/hmmlog.txt --domtblout ipresto_output/mibig_gbk_3.1_domtables/BGC0002659.domtable --cut_tc --cpu 0 /lustre/BIF/nobackup/lien002/data/ipresto_data/Pfam_100subs_tc.hmm ipresto_output/mibig_gbk_3.1_fasta/BGC0002659.fasta 
-# Current dir:     /lustre/BIF/nobackup/lien002/projects/mibig_subclusters
-# Date:            Sat Dec 16 01:01:21 2023
-# [ok]

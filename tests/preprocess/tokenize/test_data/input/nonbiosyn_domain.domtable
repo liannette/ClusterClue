@@ -12,12 +12,3 @@ DUF2063              PF09836.9     85 NZ_JAMDLH010000010.1.region001_gid:_pid:WP
 DUF692               PF05114.13   263 NZ_JAMDLH010000010.1.region001_gid:_pid:WP-251730499.1_loc:5000;5909;-_6/7 -            302    6e-102  340.8   0.0   1   1  2.8e-106  6.9e-102  340.6   0.0     3   261    25   288    23   290 0.97 Protein of unknown function (DUF692)
 DUF2282              PF10048.9     53 NZ_JAMDLH010000010.1.region001_gid:_pid:WP-251730393.1_loc:5952;6267;-_7/7 -            104     1e-22   80.3   3.1   1   1   5.9e-27   1.5e-22   79.8   3.1     1    51    41    92    41    97 0.92 Predicted integral membrane protein (DUF2282)
 #
-# Program:         hmmscan
-# Version:         3.3.2 (Nov 2020)
-# Pipeline mode:   SCAN
-# Query file:      /lustre/BIF/nobackup/lien002/projects/ipresto_runs/antismash_db_v4/results/ipresto_results_batch_11/asdb_gbks_batch_11_fasta/NZ_JAMDLH010000010.1.region001.fasta
-# Target file:     /lustre/BIF/nobackup/lien002/data/ipresto_data/Pfam_100subs_tc.hmm
-# Option settings: hmmscan -o /lustre/BIF/nobackup/lien002/projects/ipresto_runs/antismash_db_v4/results/ipresto_results_batch_11/asdb_gbks_batch_11_domtables/hmmlog.txt --domtblout /lustre/BIF/nobackup/lien002/projects/ipresto_runs/antismash_db_v4/results/ipresto_results_batch_11/asdb_gbks_batch_11_domtables/NZ_JAMDLH010000010.1.region001.domtable --cut_tc --cpu 0 /lustre/BIF/nobackup/lien002/data/ipresto_data/Pfam_100subs_tc.hmm /lustre/BIF/nobackup/lien002/projects/ipresto_runs/antismash_db_v4/results/ipresto_results_batch_11/asdb_gbks_batch_11_fasta/NZ_JAMDLH010000010.1.region001.fasta 
-# Current dir:     /lustre/BIF/nobackup/lien002/projects/ipresto_runs/antismash_db_v4
-# Date:            Sat Apr 27 07:12:46 2024
-# [ok]

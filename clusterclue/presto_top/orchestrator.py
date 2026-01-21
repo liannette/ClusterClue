@@ -1,7 +1,7 @@
 import logging
 from pathlib import Path
 from typing import Optional
-from ipresto.presto_top.presto_top import (
+from clusterclue.presto_top.presto_top import (
     read2dict,
     run_lda,
     run_lda_from_existing,

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from ipresto.preprocess.tokenize.process_gbk import convert_gbk2fasta
+from clusterclue.preprocess.tokenize.process_gbk import convert_gbk2fasta
 
 
 def test_convert_gbk2fasta(tmp_path):

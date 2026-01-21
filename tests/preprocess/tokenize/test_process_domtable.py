@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from ipresto.preprocess.tokenize.process_domtable import (
+from clusterclue.preprocess.tokenize.process_domtable import (
     calculate_overlap,
     domains_are_overlapping,
     domtable_to_tokenized_cluster,

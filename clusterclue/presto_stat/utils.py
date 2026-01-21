@@ -1,8 +1,8 @@
 import csv
 import logging
 from collections import OrderedDict
-from ipresto.clusters.utils import count_non_empty_genes
-from ipresto.presto_stat.stat_module import StatModule
+from clusterclue.clusters.utils import count_non_empty_genes
+from clusterclue.presto_stat.stat_module import StatModule
 
 logger = logging.getLogger(__name__)
 

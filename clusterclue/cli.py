@@ -4,8 +4,8 @@ import sys
 import argparse
 import logging
 from pathlib import Path
-from ipresto.pipeline import create_new_motifs
-from ipresto.utils import listener_process, worker_configurer
+from clusterclue.pipeline import create_new_motifs
+from clusterclue.utils import listener_process, worker_configurer
 
 # Python 3.12 issues a DeprecationWarning when using os.fork() in a multi-threaded process,
 # because forking with active threads can cause deadlocks due to lock states not being 
@@ -354,7 +354,7 @@ def main():
     """
     cmd = get_commands()
     Path(cmd.out_dir_path).mkdir(parents=True, exist_ok=True)
-    log_file_path = Path(cmd.out_dir_path) / "ipresto.log"
+    log_file_path = Path(cmd.out_dir_path) / "clusterclue.log"
 
     # Set up multiprocessing-friendly logging
     queue = Queue(-1)
@@ -362,7 +362,7 @@ def main():
     listener.start()
     worker_configurer(queue)
 
-    logger = logging.getLogger("ipresto.cli")
+    logger = logging.getLogger("clusterclue.cli")
     logger.info("Command: %s", " ".join(sys.argv))
 
     # Execute the main pipeline with provided arguments

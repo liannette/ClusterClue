@@ -1,7 +1,7 @@
 import logging
 from collections import defaultdict
 from dataclasses import dataclass
-from ipresto.gwms.subcluster_motif import SubclusterMotif
+from clusterclue.gwms.subcluster_motif import SubclusterMotif
 
 logger = logging.getLogger(__name__)
 

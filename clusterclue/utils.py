@@ -24,10 +24,10 @@ def listener_configurer(log_filepath, verbose=False):
     # Third-party libs default to WARNING
     root.setLevel(logging.WARNING)
 
-    # ipresto logs are INFO/DEBUG
-    ipresto_logger = logging.getLogger("ipresto")
-    ipresto_logger.setLevel(logging.DEBUG if verbose else logging.INFO)
-    ipresto_logger.propagate = True
+    # clusterclue logs are INFO/DEBUG
+    clusterclue_logger = logging.getLogger("clusterclue")
+    clusterclue_logger.setLevel(logging.DEBUG if verbose else logging.INFO)
+    clusterclue_logger.propagate = True
 
 
 def listener_process(queue, log_filepath, verbose=False):

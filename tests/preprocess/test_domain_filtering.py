@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from ipresto.preprocess.domain_filtering import (
+from clusterclue.preprocess.domain_filtering import (
     extract_domain_base_name,
     filter_domains_in_gene,
     perform_domain_filtering,

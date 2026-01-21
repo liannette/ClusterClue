@@ -6,7 +6,7 @@ from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.cluster import KMeans
 from joblib import parallel_backend
 from pathlib import Path
-from ipresto.presto_stat.utils import (
+from clusterclue.presto_stat.utils import (
     tokenized_genes_to_string,
     write_module_families,
 )

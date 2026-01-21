@@ -1,6 +1,6 @@
 import re
 
-from ipresto.clusters.utils import (
+from clusterclue.clusters.utils import (
     read_clusters_and_remove_empty,
     count_gene_occurrences,
     count_non_empty_genes,

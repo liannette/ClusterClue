@@ -1,6 +1,6 @@
 import logging
 from collections import Counter, OrderedDict
-from ipresto.clusters.utils import (
+from clusterclue.clusters.utils import (
     read_clusters_and_remove_empty,
     write_gene_counts,
     write_clusters,

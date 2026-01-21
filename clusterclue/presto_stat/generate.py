@@ -15,8 +15,8 @@ from functools import partial
 from statsmodels.stats.multitest import multipletests
 from sympy import binomial as ncr
 from math import floor, log10
-from ipresto.presto_stat.detect import detect_modules_in_bgcs, get_bgcs_per_module
-from ipresto.presto_stat.stat_module import StatModule
+from clusterclue.presto_stat.detect import detect_modules_in_bgcs, get_bgcs_per_module
+from clusterclue.presto_stat.stat_module import StatModule
 
 logger = logging.getLogger(__name__)
 

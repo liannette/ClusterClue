@@ -9,8 +9,8 @@ from multiprocessing import Pool, Queue
 import networkx as nx
 import logging
 from sympy import binomial as ncr
-from ipresto.utils import worker_init
-from ipresto.clusters.utils import (
+from clusterclue.utils import worker_init
+from clusterclue.clusters.utils import (
     format_cluster_to_string,
     read_clusters,
     write_gene_counts,

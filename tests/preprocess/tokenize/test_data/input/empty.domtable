@@ -2,12 +2,3 @@
 # target name        accession   tlen query name                                          accession   qlen   E-value  score  bias   #  of  c-Evalue  i-Evalue  score  bias  from    to  from    to  from    to  acc description of target
 #------------------- ---------- -----                                -------------------- ---------- ----- --------- ------ ----- --- --- --------- --------- ------ ----- ----- ----- ----- ----- ----- ----- ---- ---------------------
 #
-# Program:         hmmscan
-# Version:         3.3 (Nov 2019)
-# Pipeline mode:   SCAN
-# Query file:      output/preprocess/fastas/BGC0000505.fasta
-# Target file:     input/ipresto_data/Pfam_100subs_tc.hmm
-# Option settings: hmmscan -o /dev/null --domtblout output/preprocess/domtables/BGC0000505.domtable --cut_tc --cpu 0 input/ipresto_data/Pfam_100subs_tc.hmm output/preprocess/fastas/BGC0000505.fasta 
-# Current dir:     /lustre/BIF/nobackup/lien002/projects/ipresto_runs/asdb4_mibig4_newmodels
-# Date:            Thu Jan 16 13:31:05 2025
-# [ok]

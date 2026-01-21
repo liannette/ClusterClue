@@ -4,8 +4,8 @@ from multiprocessing import Pool
 from Bio import SearchIO
 from pathlib import Path
 from functools import partial
-from ipresto.utils import worker_init
-from ipresto.clusters.utils import (
+from clusterclue.utils import worker_init
+from clusterclue.clusters.utils import (
     count_non_empty_genes,
     format_cluster_to_string,
     write_gene_counts,

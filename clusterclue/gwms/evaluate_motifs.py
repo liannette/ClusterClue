@@ -2,9 +2,9 @@ import logging
 import pandas as pd
 from typing import Dict, List
 from pathlib import Path
-from ipresto.clusters.tokenize.orchestrator import TokenizeOrchestrator
-from ipresto.gwms.detect_motifs import detect_motifs
-from ipresto.gwms.detect_motifs import MotifHit
+from clusterclue.clusters.tokenize.orchestrator import TokenizeOrchestrator
+from clusterclue.gwms.detect_motifs import detect_motifs
+from clusterclue.gwms.detect_motifs import MotifHit
 
 logger = logging.getLogger(__name__)
 
@@ -191,7 +191,7 @@ def calculate_evaluation(ref_subclusters_with_hits: pd.DataFrame) -> tuple:
     return avg_f1, avg_penalized_f1
 
 
-def write_motif_file(ref_subclusters: pd.DataFrame, best_motif_set: dict, output_filepath: Path) -> None:
+def write_motif_evaluation(ref_subclusters: pd.DataFrame, best_motif_set: dict, output_filepath: Path) -> None:
     """Writes the best motif set hits to a tsv file."""
     eval_df = ref_subclusters.merge(best_motif_set["best_hits"], on="subcluster_id")
     eval_df["tokenized_genes"] = eval_df["tokenized_genes"].apply(lambda x: ";".join(x))
@@ -281,7 +281,7 @@ def select_best_motif_set(
     
     # Save best motif set hits to a tsv file
     best_motif_set_hits_filepath = output_dirpath / "best_motif_set_hits.tsv"
-    write_motif_file(ref_subclusters, best_motif_set, best_motif_set_hits_filepath)
-    logger.info(f"Wrote best motif set hits to {best_motif_set_hits_filepath}")
+    write_motif_evaluation(ref_subclusters, best_motif_set, best_motif_set_hits_filepath)
+    logger.info(f"Wrote the evaluation details of the best motif set to {best_motif_set_hits_filepath}")
 
     return Path(best_motif_set["motif_file"])

@@ -3,10 +3,10 @@ requires = ["setuptools >= 64", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "iPRESTO"
-dynamic = ["version"]
+name = "ClusterClue"
+version = "0.1.0"
 license = "AGPL-3.0-or-later"
-description = "Detection of biosynthetic sub-clusters"
+description = "Create and detect biosynthetic subcluster motifs in BGCs"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 authors = [
@@ -37,12 +37,19 @@ dev = [
     "pytest",
     "pytest-cov"
 ]
+jupyter = [
+    "jupyter",
+    "notebook",
+    "rdkit",
+    "jupyter",
+    "notebook",
+]
 
 [project.scripts]
-ipresto = "ipresto.cli:main"
+clusterclue = "clusterclue.cli:main"
 
 [tool.setuptools.dynamic]
-version = {attr = "ipresto.__version__"}
+version = {attr = "clusterclue.__version__"}
 
 [tool.setuptools.packages.find]
 # find all packages
@@ -51,3 +58,6 @@ include = ["*"]
 
 [tool.setuptools]
 include-package-data = true
+
+[tool.setuptools.package-data]
+"clusterclue" = ["data/*"]

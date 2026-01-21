@@ -1,12 +1,12 @@
 import time
 import logging
 from pathlib import Path
-from ipresto.clusters.tokenize.orchestrator import TokenizeOrchestrator
-from ipresto.clusters.orchestrator import PreprocessOrchestrator
-from ipresto.presto_stat.orchestrator import StatOrchestrator
-from ipresto.presto_top.orchestrator import TopOrchestrator
-from ipresto.gwms.create_motifs import generate_subcluster_motifs
-from ipresto.gwms.evaluate_motifs import select_best_motif_set
+from clusterclue.clusters.tokenize.orchestrator import TokenizeOrchestrator
+from clusterclue.clusters.orchestrator import PreprocessOrchestrator
+from clusterclue.presto_stat.orchestrator import StatOrchestrator
+from clusterclue.presto_top.orchestrator import TopOrchestrator
+from clusterclue.gwms.create_motifs import generate_subcluster_motifs
+from clusterclue.gwms.evaluate_motifs import select_best_motif_set
 
 
 logger = logging.getLogger(__name__)

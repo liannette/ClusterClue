@@ -1,23 +1,23 @@
 import logging
 from pathlib import Path
 from typing import Optional
-from ipresto.presto_stat.utils import (
+from clusterclue.presto_stat.utils import (
     read_clusterfile,
     read_stat_modules,
     write_modules_per_bgc,
     write_bgcs_per_module,
     write_detected_stat_modules,
 )
-from ipresto.presto_stat.generate import generate_stat_modules
-from ipresto.presto_stat.detect import (
+from clusterclue.presto_stat.generate import generate_stat_modules
+from clusterclue.presto_stat.detect import (
     detect_modules_in_bgcs,
     get_bgcs_per_module,
 )
-from ipresto.presto_stat.cluster_modules import (
+from clusterclue.presto_stat.cluster_modules import (
     cluster_stat_modules,
     plot_kmeans_elbow,
 )
-from ipresto.presto_stat.utils import write_stat_modules
+from clusterclue.presto_stat.utils import write_stat_modules
 
 logger = logging.getLogger(__name__)
 

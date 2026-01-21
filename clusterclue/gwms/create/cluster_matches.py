@@ -4,7 +4,7 @@ from sklearn.cluster import MiniBatchKMeans
 from sklearn.preprocessing import MultiLabelBinarizer
 from collections import Counter
 
-from ipresto.gwms.subcluster_motif import SubclusterMotif
+from clusterclue.gwms.subcluster_motif import SubclusterMotif
 
 
 logger = logging.getLogger(__name__)

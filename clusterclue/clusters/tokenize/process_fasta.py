@@ -5,7 +5,7 @@ from pathlib import Path
 from pyhmmer.hmmer import hmmscan
 from pyhmmer.plan7 import HMMFile
 from pyhmmer.easel import SequenceFile
-from ipresto.utils import worker_init
+from clusterclue.utils import worker_init
 
 logger = logging.getLogger(__name__)
 

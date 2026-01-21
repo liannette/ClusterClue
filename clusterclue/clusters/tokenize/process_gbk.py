@@ -4,7 +4,7 @@ from multiprocessing import Pool
 from functools import partial
 from Bio import SeqIO
 from pathlib import Path
-from ipresto.utils import worker_init
+from clusterclue.utils import worker_init
 
 logger = logging.getLogger(__name__)
 

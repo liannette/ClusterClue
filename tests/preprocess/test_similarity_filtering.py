@@ -1,7 +1,7 @@
 import networkx as nx
 import os
 
-from ipresto.preprocess.similarity_filtering import (
+from clusterclue.preprocess.similarity_filtering import (
     generate_adjacent_domain_pairs,
     calc_adj_index,
     is_contained,
