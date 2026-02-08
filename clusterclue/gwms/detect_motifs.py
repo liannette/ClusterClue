@@ -3,6 +3,7 @@ from collections import defaultdict
 from clusterclue.classes.hits import MotifHit
 from clusterclue.classes.subcluster_motif import SubclusterMotif
 from pathlib import Path
+from importlib.resources import files
 import subsketch as subsk
 
 logger = logging.getLogger(__name__)
@@ -117,6 +118,7 @@ def visualise_gwm_hits(
         domain_hits_file=domain_hits_filepath,
         motif_hits_file=motif_hits_filepath,
         compounds_file=compound_structures_filepath,
+        domain_colors_file=Path(files("clusterclue").joinpath("data"))
     )
     session.load()
 

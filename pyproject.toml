@@ -5,17 +5,30 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ClusterClue"
 version = "0.1.0"
-license = "AGPL-3.0-or-later"
+license = {text = "AGPL-3.0-or-later"}
 description = "Create and detect biosynthetic SubCluster Motifs in BGCs"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 authors = [
-    { name = "Annette Lien", email = "annette.lien@wur.nl" }
+    { name = "Annette Lien", email = "annette.lien@posteo.de" }
+]
+maintainers = [
+    {name = "Annette Lien", email = "a.lien@posteo.de"}
+]
+keywords = [
+    "bioinformatics",
+    "genome-mining", 
+    "biosynthetic-gene-clusters",
+    "clusterclue"
 ]
 classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
     "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Topic :: Scientific/Engineering :: Visualization",
     "Operating System :: MacOS",
-    "Operating System :: POSIX :: Linux",
+    "Operating System :: POSIX :: Linux"
 ]
 dependencies = [
     "biopython",
@@ -31,6 +44,9 @@ dependencies = [
     "sympy",
     "scikit-learn",
 ]
+
+[project.urls]
+Repository = "https://github.com/liannette/clusterclue.git"
 
 [project.optional-dependencies]
 dev = [
