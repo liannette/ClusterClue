@@ -34,17 +34,16 @@ class TopOrchestrator:
         top_model_file_path: Optional[str],
         topics: int, 
         amplify: Optional[int], 
-        iterations: int,
-        chunksize: int, 
-        update: bool, 
-        visualise: bool,
-        alpha: str,
-        beta: str,
-        plot: bool,
-        feat_num: int,
-        min_feat_score: float,
-        cores: int,
-        verbose: bool,
+        iterations: Optional[int] = 500,
+        chunksize: Optional[int] = None, 
+        update: bool = False, 
+        visualise: bool = False,
+        alpha: str = "symmetric",
+        beta: str = "symmetric",
+        plot: bool = False,
+        feat_num: int = 75,
+        min_feat_score: float = 0.95,
+        cores: int = 1,
     ) -> str:
         """ """
         # Create output directory
@@ -103,3 +102,4 @@ class TopOrchestrator:
         if not top_model_file_path:
             outfile = presto_top_dir / "model_convergence_likelihood.pdf"
             plot_convergence(gensim_log_file, iterations, outfile)
+            

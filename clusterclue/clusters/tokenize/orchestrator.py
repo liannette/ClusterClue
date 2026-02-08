@@ -14,13 +14,13 @@ class TokenizeOrchestrator:
         gene_counts_file_path,
         gbks_dir_path,
         hmm_file_path,
-        exclude_name,
         include_contig_edge_clusters,
         min_genes,
         max_domain_overlap,
         cores,
         verbose,
         log_queue,
+        exclude_name=[]
     ):
         """Wrapper for tokenization of clusters.
 

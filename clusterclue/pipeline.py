@@ -1,4 +1,3 @@
-import time
 import logging
 from pathlib import Path
 from clusterclue.clusters.tokenize.orchestrator import TokenizeOrchestrator
@@ -6,229 +5,217 @@ from clusterclue.clusters.orchestrator import PreprocessOrchestrator
 from clusterclue.presto_stat.orchestrator import StatOrchestrator
 from clusterclue.presto_top.orchestrator import TopOrchestrator
 from clusterclue.gwms.create_motifs import generate_subcluster_motifs
-from clusterclue.gwms.evaluate_motifs import select_best_motif_set
-
+from clusterclue.gwms.select_best import select_best_motif_set, visualize_evaluation_results
+from clusterclue.evaluate.presto_predictions import evaluate_presto_stat, evaluate_presto_top
+from clusterclue.gwms.detect_motifs import detect_gwms_in_clusters, visualise_gwm_hits
 
 logger = logging.getLogger(__name__)
 
 
 def create_new_motifs(
-    out_dir_path,
-    gbks_dir_path,
-    existing_clusterfile,
-    exclude_name,
-    include_contig_edge_clusters,
-    hmm_file_path,
-    max_domain_overlap,
-    min_genes_per_bgc,
-    domain_filtering,
-    similarity_filtering,
-    similarity_cutoff,
-    remove_infrequent_genes,
-    min_gene_occurrence,
-    run_stat,
-    stat_modules_file_path,
-    stat_pval_cutoff,
-    stat_n_families_range,
-    run_top,
-    top_model_file_path,
-    top_n_topics, 
-    top_amplify, 
-    top_iterations,
-    top_chunksize, 
-    top_update, 
-    top_visualise,
-    top_alpha,
-    top_beta,
-    top_plot,
-    top_feat_num,
-    top_min_feat_score,
-    k_values,
-    reference_subclusters_filepath,
-    reference_gbks_dirpath,
-    cores,
-    verbose,
+    cmd,
     log_queue
 ):
     """
     Runs the entire pipeline.
     """
-    start_time = time.time()
-
-    out_dir_path = Path(out_dir_path)
-    out_dir_path.mkdir(parents=True, exist_ok=True)
+    out_dirpath = Path(cmd.out_dir_path)
+    out_dirpath.mkdir(parents=True, exist_ok=True)
 
     # Step 1: Preprocessing clusters
     logger.info("=== Preprocessing clusters ===")
-    preprocess_dir_path = out_dir_path / "preprocess"
+    preprocess_dirpath = out_dirpath / "preprocess"
     clusters_file_path = PreprocessOrchestrator().run(
-        preprocess_dir_path,
-        existing_clusterfile,
-        gbks_dir_path,
-        hmm_file_path,
-        exclude_name,
-        include_contig_edge_clusters,
-        min_genes_per_bgc,
-        max_domain_overlap,
-        domain_filtering,
-        similarity_filtering,
-        similarity_cutoff,
-        remove_infrequent_genes,
-        min_gene_occurrence,
-        cores,
-        verbose,
+        preprocess_dirpath,
+        cmd.gbks_dir_path,
+        cmd.hmm_file_path,
+        cmd.include_contig_edge_clusters,
+        cmd.min_genes_per_bgc,
+        cmd.max_domain_overlap,
+        cmd.similarity_filtering,
+        cmd.similarity_cutoff,
+        cmd.remove_infrequent_genes,
+        cmd.min_gene_occurrence,
+        cmd.cores,
+        cmd.verbose,
         log_queue,
     )
 
+
     # Step 2: Statistical subcluster detection (PRESTO-STAT)
-    stat_dir_path = out_dir_path / "stat_subclusters"
-    if run_stat:
+    stat_dirpath = out_dirpath / "presto_stat_subclusters"
+    if cmd.run_stat:
         logger.info("=== PRESTO-STAT: statistical subcluster detection ===")
         StatOrchestrator().run(
-            stat_dir_path,
+            stat_dirpath,
             clusters_file_path,
-            stat_modules_file_path,
-            stat_pval_cutoff,
-            stat_n_families_range,
-            min_genes_per_bgc,
-            cores,
-            verbose,
+            cmd.stat_modules_file_path,
+            cmd.stat_pval_cutoff,
+            cmd.stat_n_families_range,
+            cmd.min_genes_per_bgc,
+            cmd.cores,
+            cmd.verbose,
         )
 
     # Step 3: Topic modelling for subcluster motif detection (PRESTO-TOP)
-    top_dir_path = out_dir_path / "top_subclusters"
-    if run_top:
+    top_dirpath = out_dirpath / "presto_top_subclusters"
+    if cmd.run_top:
         logger.info("=== PRESTO-TOP: subcluster detection using topic modelling ===")
         TopOrchestrator().run(
-            top_dir_path,
+            top_dirpath,
             clusters_file_path,
-            top_model_file_path,
-            top_n_topics, 
-            top_amplify, 
-            top_iterations,
-            top_chunksize, 
-            top_update, 
-            top_visualise,
-            top_alpha,
-            top_beta,
-            top_plot,
-            top_feat_num,
-            top_min_feat_score,
-            cores,
-            verbose,
+            cmd.top_model_file_path,
+            cmd.top_n_topics, 
+            cmd.top_amplify, 
+            cmd.top_iterations,
+            cmd.top_chunksize, 
+            cmd.top_update, 
+            cmd.top_visualise,
+            cmd.top_alpha,
+            cmd.top_beta,
+            cmd.top_plot,
+            cmd.top_feat_num,
+            cmd.top_min_feat_score,
+            cmd.cores,
         )
+
+    # PRESTO evaluation
+    logger.info("=== Evaluating PRESTO subcluster detections against reference subclusters ===")
+    
+    evaluation_dirpath = out_dirpath / "evaluation" 
+    evaluation_dirpath.mkdir(parents=True, exist_ok=True)
+    
+    logger.info(f"Preprocessing BGCs containing annotated subclusters from {cmd.reference_subclusters_filepath}")
+    prep_ref_dirpath = evaluation_dirpath / "preprocess_reference_clusters"
+    prep_ref_dirpath.mkdir(parents=True, exist_ok=True)
+
+    ref_clusters_filepath = prep_ref_dirpath / "clusters.tsv"
+    ref_domain_hits_filepath = prep_ref_dirpath / "all_domain_hits.txt"
+
+    if ref_clusters_filepath.is_file() and ref_domain_hits_filepath.is_file():
+        logger.info("Skipping tokenisation step for reference BGCs, because the files already exist.")
+    else:
+        TokenizeOrchestrator().run(
+            clusters_file_path=ref_clusters_filepath,
+            gene_counts_file_path=prep_ref_dirpath / "gene_counts.tsv",
+            gbks_dir_path=cmd.reference_gbks_dirpath,
+            hmm_file_path=cmd.hmm_file_path,
+            include_contig_edge_clusters=True,
+            min_genes=0,
+            max_domain_overlap=cmd.max_domain_overlap,
+            cores=cmd.cores,
+            verbose=cmd.verbose,
+            log_queue=log_queue,
+        )
+    stat_evaluate_dirpath = evaluation_dirpath / "presto_stat_subclusters"
+    if stat_evaluate_dirpath.is_dir() and any(stat_evaluate_dirpath.iterdir()):
+        logger.info(f"Skipping PRESTO-STAT evaluation step, because the directory already exists and is not empty: {stat_evaluate_dirpath}")
+    else:
+        evaluate_presto_stat(
+            reference_subclusters_filepath=cmd.reference_subclusters_filepath,
+            reference_clusters_filepath=ref_clusters_filepath,
+            stat_modules=stat_dirpath / "stat_modules.txt",
+            output_dirpath=evaluation_dirpath / "presto_stat_subclusters",
+        )
+    top_evaluate_dirpath = evaluation_dirpath / "presto_top_subclusters"
+    if top_evaluate_dirpath.is_dir() and any(top_evaluate_dirpath.iterdir()):
+        logger.info(f"Skipping PRESTO-TOP evaluation step, because the directory already exists and is not empty: {top_evaluate_dirpath}")
+    else:
+        evaluate_presto_top(
+            reference_subclusters_filepath=cmd.reference_subclusters_filepath,
+            reference_clusters_filepath=ref_clusters_filepath,
+            top_model_file_path=top_dirpath / "lda_model",
+            number_of_topics=cmd.top_n_topics,
+            output_dirpath=evaluation_dirpath / "presto_top_subclusters",
+        )
+
 
     # Step 4: Create GWMs
     logger.info("=== Create Subcluster Motif gene weight matrices (GWMs) ===")
-    stat_matches_filepath = stat_dir_path / "detected_stat_modules.txt"
-    top_matches_filepath = top_dir_path / "matches_per_topic_filtered.txt"
-
-    gwm_dirpath = out_dir_path / "motif_gwms"
-    motifs_filepaths = generate_subcluster_motifs(
-        clusters_file_path,
-        stat_matches_filepath,
-        top_matches_filepath,
-        k_values,
-        gwm_dirpath
-    )
-
-    # select best motifs based on evaluation (to be implemented)
-    evaluation_dirpath = gwm_dirpath / "evaluation"
-    best_motif_filepath = select_best_motif_set(
-        motifs_filepaths=motifs_filepaths,
-        output_dirpath=evaluation_dirpath,
-        reference_subclusters_filepath=reference_subclusters_filepath,
-        reference_gbks_dirpath=reference_gbks_dirpath,
-        hmm_file_path=hmm_file_path,
-        max_domain_overlap=max_domain_overlap,
-        cores=cores,
-        verbose=verbose,
-        log_queue=log_queue,
-    )
-
-    # Write best motifs to final output file
-    final_motif_filepath = gwm_dirpath / "subcluster_motifs.txt"
-    final_motif_filepath.write_text(best_motif_filepath.read_text())
-    logger.info(f"Wrote best motif set to {final_motif_filepath}")
-
-    end_time = time.time()
-    elapsed_time = end_time - start_time
-    hours, remainder = divmod(elapsed_time, 3600)
-    minutes, seconds = divmod(remainder, 60)
-    logger.info("Total runtime: %d hours and %d minutes", int(hours), int(minutes))
-
-
-def detect_existing_motifs(
-    out_dir_path,
-    gbks_dir_path,
-    existing_clusterfile,
-    exclude_name,
-    include_contig_edge_clusters,
-    hmm_file_path,
-    max_domain_overlap,
-    min_genes_per_bgc,
-    domain_filtering,
-    similarity_filtering,
-    similarity_cutoff,
-    remove_infrequent_genes,
-    min_gene_occurrence,
-    run_stat,
-    stat_modules_file_path,
-    stat_pval_cutoff,
-    stat_n_families_range,
-    run_top,
-    top_model_file_path,
-    top_n_topics, 
-    top_amplify, 
-    top_iterations,
-    top_chunksize, 
-    top_update, 
-    top_visualise,
-    top_alpha,
-    top_beta,
-    top_plot,
-    top_feat_num,
-    top_min_feat_score,
-    k_values,
-    reference_subclusters_filepath,
-    reference_gbks_dirpath,
-    cores,
-    verbose,
-    log_queue
-    ):
-
-    start_time = time.time()
-
-    out_dir_path = Path(out_dir_path)
-    out_dir_path.mkdir(parents=True, exist_ok=True)
-
-    # Step 1: Preprocessing clusters
-    logger.info("=== Preprocessing input biosynthetic gene clusters ===")
-    preprocess_dir_path = out_dir_path / "preprocess"
-    clusters_file_path = preprocess_dir_path / "clusters_all_domains.csv"
-    gene_counts_file_path = preprocess_dir_path / "clusters_all_domains_gene_counts.txt"
-    if clusters_file_path.is_file():
-        logger.info(f"Skipping tokenisation step, because the file already exists: {clusters_file_path}")
-    elif existing_clusterfile:
-        logger.info(f"Using provided file of tokenized BGCs: {existing_clusterfile}.")
-        clusters_file_path.write_text(Path(existing_clusterfile).read_text())
+    motifs_dirpath = out_dirpath / "clusterclue_motifs"
+    if motifs_dirpath.is_dir() and any(motifs_dirpath.iterdir()):
+        logger.info(f"Skipping motif generation step, because the directory already exists and is not empty: {motifs_dirpath}")
     else:
-        TokenizeOrchestrator().run(
+        motifs_dirpath.mkdir(parents=True, exist_ok=True)
+        stat_matches_filepath = stat_dirpath / "detected_stat_modules.txt"
+        top_matches_filepath = top_dirpath / "matches_per_topic_filtered.txt"
+        gwms_dirpath = generate_subcluster_motifs(
             clusters_file_path,
-            gene_counts_file_path,
-            gbks_dir_path,
-            hmm_file_path,
-            exclude_name,
-            include_contig_edge_clusters,
-            min_genes_per_bgc,
-            max_domain_overlap,
-            cores,
-            verbose,
+            stat_matches_filepath,
+            top_matches_filepath,
+            cmd.k_values,
+            motifs_dirpath,
+            cmd.cores,
             log_queue,
         )
 
-    end_time = time.time()
-    elapsed_time = end_time - start_time
-    hours, remainder = divmod(elapsed_time, 3600)
-    minutes, seconds = divmod(remainder, 60)
-    logger.info("Total runtime: %d hours and %d minutes", int(hours), int(minutes))
+        gwms_dirpath = motifs_dirpath / "gwms"
+        select_best_motif_set(
+            output_dirpath=motifs_dirpath,
+            gwms_dirpath=gwms_dirpath,
+            reference_subclusters_filepath=cmd.reference_subclusters_filepath,
+            clusters_filepath=ref_clusters_filepath,
+        )
+
+        # visualize the best motif set
+        # TODO: make mibig compounds filepath configurable
+        mibig_compounds_filepath = Path(cmd.reference_subclusters_filepath).parent / "mibig_4.0_compounds.tsv"
+        visualize_evaluation_results(
+            motifs_dirpath,
+            ref_clusters_filepath,
+            cmd.reference_gbks_dirpath,
+            mibig_compounds_filepath,
+        )
+
+
+def detect_existing_motifs(
+    cmd,
+    log_queue,
+    ):
+
+    out_dirpath = Path(cmd.out_dir_path)
+    out_dirpath.mkdir(parents=True, exist_ok=True)
+
+    # Step 1: Preprocessing clusters
+    logger.info("=== Preprocessing input biosynthetic gene clusters ===")
+    preprocess_dirpath = out_dirpath / "preprocess"
+
+    clusters_file_path = PreprocessOrchestrator().run(
+        out_dir_path=preprocess_dirpath,
+        gbks_dir_path=cmd.gbk_dir_path,
+        hmm_file_path=cmd.hmm_file_path,
+        include_contig_edge_clusters=True,
+        min_genes=0,
+        max_domain_overlap=cmd.max_domain_overlap,
+        similarity_filtering_flag=False,
+        sim_cutoff=None,
+        remove_infrequent_genes_flag=False,
+        min_gene_occurrence=None,
+        cores=cmd.cores,
+        verbose=cmd.verbose,
+        log_queue=log_queue,
+    )
+
+    # Step 2: Detect existing motifs
+    logger.info("=== Detecting existing subcluster motifs ===")
+    hits_filepath = out_dirpath / "detected_motifs.tsv"
+    detect_gwms_in_clusters(
+        clusters_filepath=clusters_file_path,
+        motifs_filepath=cmd.gwms_filepath,
+        output_filepath=hits_filepath,
+    )
+
+    # Step 3: Visualize detected motif hits
+    if cmd.visualize_hits:
+        logger.info("=== Visualizing detected motif hits ===")
+        visualization_output_dirpath = out_dirpath / "hit_visualizations"
+        visualization_output_dirpath.mkdir(parents=True, exist_ok=True)
+        visualise_gwm_hits(
+            motif_gwms_filepath=cmd.gwms_filepath,
+            motif_hits_filepath=hits_filepath,
+            genbank_dirpath=cmd.gbk_dir_path,
+            domain_hits_filepath=preprocess_dirpath / "all_domain_hits.txt",
+            compound_structures_filepath=cmd.compound_smiles_filepath,
+            output_dirpath=visualization_output_dirpath,
+        )
+

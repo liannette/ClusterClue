@@ -13,6 +13,7 @@ def listener_configurer(log_filepath, verbose=False):
     root.handlers.clear()
 
     file_handler = logging.FileHandler(log_filepath, encoding="utf-8")
+    file_handler.setLevel(logging.INFO) 
     formatter = logging.Formatter(
         "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
         if verbose else
@@ -21,8 +22,8 @@ def listener_configurer(log_filepath, verbose=False):
     file_handler.setFormatter(formatter)
     root.addHandler(file_handler)
 
-    # Third-party libs default to WARNING
-    root.setLevel(logging.WARNING)
+    # # Third-party libs default to WARNING
+    # root.setLevel(logging.WARNING)
 
     # clusterclue logs are INFO/DEBUG
     clusterclue_logger = logging.getLogger("clusterclue")

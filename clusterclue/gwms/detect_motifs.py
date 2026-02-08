@@ -1,16 +1,12 @@
 import logging
 from collections import defaultdict
-from dataclasses import dataclass
-from clusterclue.gwms.subcluster_motif import SubclusterMotif
+from clusterclue.classes.hits import MotifHit
+from clusterclue.classes.subcluster_motif import SubclusterMotif
+from pathlib import Path
+import subsketch as subsk
 
 logger = logging.getLogger(__name__)
 
-@dataclass
-class MotifHit:
-    bgc_id: str
-    motif_id: str
-    score: float
-    tokenized_genes: set
 
 def parse_clusters_file(clusters_file):
     with open(clusters_file, "r") as infile:
@@ -42,7 +38,7 @@ def parse_motifs_file(motifs_file):
     return subcluster_motifs
 
 
-def write_motif_hits(motif_hits, output_filepath):
+def write_motif_hits(motif_hits, motifs, output_filepath):
 
     with open(output_filepath, "w") as outfile:
         # print header
@@ -68,14 +64,10 @@ def write_motif_hits(motif_hits, output_filepath):
                     str(motif_hit.score),
                     ",".join(sorted(motif_hit.tokenized_genes)),
                 ]
-            print("\t".join(line_fields), file=outfile)
+                print("\t".join(line_fields), file=outfile)
 
 
-def detect_motifs(clusters_filepath, motifs_filepath, output_filepath):
-
-    clusters = parse_clusters_file(clusters_filepath)
-    motifs = parse_motifs_file(motifs_filepath)
-    logger.info(f"Loaded {len(clusters)} clusters from {clusters_filepath} and {len(motifs)} subcluster motifs from {motifs_filepath}   ")
+def detect_motifs(clusters, motifs):
 
     motif_hits = defaultdict(list)
     for bgc_id, bgc_genes in clusters.items():
@@ -92,8 +84,76 @@ def detect_motifs(clusters_filepath, motifs_filepath, output_filepath):
                 MotifHit(bgc_id, motif.motif_id, score, hit_genes)
                 )
 
-    logger.info(
-        f"Wrote {sum(len(v) for v in motif_hits.values())} motif hits meeting "
-        f"threshold criteria to {output_filepath}")
-
     return motif_hits
+
+
+def detect_gwms_in_clusters(
+    clusters_filepath, 
+    motifs_filepath, 
+    output_filepath,
+    ):
+    clusters = parse_clusters_file(clusters_filepath)
+    logger.info(f"Parsed {len(clusters)} clusters from {clusters_filepath}")
+    motifs = parse_motifs_file(motifs_filepath)
+    logger.info(f"Parsed {len(motifs)} motifs from {motifs_filepath}")
+    motif_hits = detect_motifs(clusters, motifs)
+    logger.info(f"Detected {sum(len(hits) for hits in motif_hits.values())} motif hits across {len(motif_hits)} clusters")
+
+    write_motif_hits(motif_hits, motifs, output_filepath)
+    logger.info(f"Wrote motif hits to {output_filepath}")
+
+
+def visualise_gwm_hits(
+    motif_gwms_filepath: str | Path,
+    motif_hits_filepath: str | Path,
+    genbank_dirpath: str | Path,
+    domain_hits_filepath: str | Path,
+    compound_structures_filepath: str | Path | None,
+    output_dirpath: str | Path,
+    ):
+    session = subsk.SubSketchSession(
+        motifs_file=motif_gwms_filepath,
+        genbank_dir=genbank_dirpath,
+        domain_hits_file=domain_hits_filepath,
+        motif_hits_file=motif_hits_filepath,
+        compounds_file=compound_structures_filepath,
+    )
+    session.load()
+
+    # html per BGC
+    bgc_dirpath = Path(output_dirpath) / "bgc_reports"
+    bgc_dirpath.mkdir(parents=True, exist_ok=True)
+    
+    logger.info(f"Generating HTML reports for {len(session.data.bgcs)} BGCs")
+    combined_html_content = ""
+    for bgc_id in session.data.bgcs.keys():
+        html_content = session.html_report_for_bgc(
+            bgc_id=bgc_id,
+            gene_arrow_scaling=60,
+            include_compound_plots=True,
+        )
+        combined_html_content += html_content
+
+        output_filepath = bgc_dirpath / f"{bgc_id}.html"
+        with open(output_filepath, "w") as f:
+            f.write(html_content)
+
+    combined_html_filepath = Path(output_dirpath) / "all_detected_motifs.html"
+    with open(combined_html_filepath, "w") as f:
+        f.write(combined_html_content)
+
+    # html per motif
+    motif_dirpath = Path(output_dirpath) / "motif_reports"
+    motif_dirpath.mkdir(parents=True, exist_ok=True)
+
+    logger.info(f"Generating HTML reports for {len(session.data.motifs)} motifs")
+    for motif_id in session.data.motifs.keys():
+        html_content = session.html_report_for_motif(
+            motif_id=motif_id,
+            gene_arrow_scaling=60,
+            include_compound_plots=True,
+        )
+        output_filepath = motif_dirpath / f"{motif_id}.html"
+        with open(output_filepath, "w") as f:
+            f.write(html_content)
+            

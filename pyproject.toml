@@ -30,6 +30,10 @@ dependencies = [
     "statsmodels",
     "sympy",
     "scikit-learn",
+    "faiss-cpu",
+    "cdlib",
+    "python-igraph",
+    "leidenalg",
 ]
 
 [project.optional-dependencies]
@@ -41,8 +45,6 @@ jupyter = [
     "jupyter",
     "notebook",
     "rdkit",
-    "jupyter",
-    "notebook",
 ]
 
 [project.scripts]
