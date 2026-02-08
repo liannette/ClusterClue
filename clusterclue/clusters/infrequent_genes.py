@@ -80,7 +80,6 @@ def remove_infrequent_genes(
             break
         
         prev_num_clusters = len(new_filtered_bgcs)
-        prev_num_genes = len(gene_counter)
         filtered_bgcs = new_filtered_bgcs
 
     logger.info(

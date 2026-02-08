@@ -75,6 +75,7 @@ def find_optimal_k(modules, k_values, output_dirpath):
             f"calinski_harabasz={ch_scores[-1]:.2f}, "
             f"davies_bouldin={db_scores[-1]:.4f}"
         )
+        #TODO: save the grouped modules per k for inspection
     
     # Optimal k: highest silhouette score
     optimal_k = k_values[np.argmax(silhouette_scores)]

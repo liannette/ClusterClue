@@ -260,10 +260,10 @@ def get_commands():
         "--k_values",
         nargs="+",
         type=int,
-        default=[2000,],
+        default=[1500,],
         metavar="<int>",
         help="Specify one or more integers to define the number of motifs (GWMS). "
-        "Each integer represents a different clustering configuration (default: 2000).",
+        "Each integer represents a different clustering configuration (default: 1500).",
     )
     build.add_argument(
         "--ref_sc",

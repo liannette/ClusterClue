@@ -6,11 +6,11 @@ build-backend = "setuptools.build_meta"
 name = "ClusterClue"
 version = "0.1.0"
 license = "AGPL-3.0-or-later"
-description = "Create and detect biosynthetic subcluster motifs in BGCs"
+description = "Create and detect biosynthetic SubCluster Motifs in BGCs"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 authors = [
-    { name = "Annette Lien", email = "annette.lien@posteo.de" }
+    { name = "Annette Lien", email = "annette.lien@wur.nl" }
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -30,10 +30,6 @@ dependencies = [
     "statsmodels",
     "sympy",
     "scikit-learn",
-    "faiss-cpu",
-    "cdlib",
-    "python-igraph",
-    "leidenalg",
 ]
 
 [project.optional-dependencies]

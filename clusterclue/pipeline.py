@@ -145,11 +145,8 @@ def create_new_motifs(
             top_matches_filepath,
             cmd.k_values,
             motifs_dirpath,
-            cmd.cores,
-            log_queue,
         )
 
-        gwms_dirpath = motifs_dirpath / "gwms"
         select_best_motif_set(
             output_dirpath=motifs_dirpath,
             gwms_dirpath=gwms_dirpath,
@@ -158,13 +155,11 @@ def create_new_motifs(
         )
 
         # visualize the best motif set
-        # TODO: make mibig compounds filepath configurable
-        mibig_compounds_filepath = Path(cmd.reference_subclusters_filepath).parent / "mibig_4.0_compounds.tsv"
         visualize_evaluation_results(
             motifs_dirpath,
             ref_clusters_filepath,
-            cmd.reference_gbks_dirpath,
-            mibig_compounds_filepath,
+            Path(cmd.reference_gbks_dirpath),
+            Path(cmd.compound_smiles_filepath),
         )
 
 
