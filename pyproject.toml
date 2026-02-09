@@ -34,15 +34,9 @@ dependencies = [
     "biopython",
     "pyhmmer",
     "matplotlib",
-    "networkx",
     "numpy",
-    "gensim==4.3.3",
-    "pyLDAvis",
     "pandas",
     "seaborn",
-    "statsmodels",
-    "sympy",
-    "scikit-learn",
 ]
 
 [project.urls]
@@ -57,6 +51,14 @@ jupyter = [
     "jupyter",
     "notebook",
     "rdkit",
+]
+build = [
+    "gensim==4.3.3",
+    "pyLDAvis",
+    "statsmodels",
+    "sympy",
+    "scikit-learn",
+    "networkx",
 ]
 
 [project.scripts]

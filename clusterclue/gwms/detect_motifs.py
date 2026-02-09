@@ -4,7 +4,7 @@ from clusterclue.classes.hits import MotifHit
 from clusterclue.classes.subcluster_motif import SubclusterMotif
 from pathlib import Path
 from importlib.resources import files
-import subsketch as subsk
+
 
 logger = logging.getLogger(__name__)
 
@@ -112,6 +112,8 @@ def visualise_gwm_hits(
     compound_structures_filepath: str | Path | None,
     output_dirpath: str | Path,
     ):
+    import subsketch as subsk
+    
     session = subsk.SubSketchSession(
         motifs_file=motif_gwms_filepath,
         genbank_dir=genbank_dirpath,

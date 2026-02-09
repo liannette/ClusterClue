@@ -281,6 +281,21 @@ def get_commands():
         help="Input directory containing gbk files of gene clusters with annotated subclusters. "
         "Used to select best hyperparameters for motif generation.",
     )
+    build.add_argument(
+        "--visualise_evaluation",
+        dest="visualise_evaluation",
+        action="store_true",
+        default=False,
+        help="Visualize the detected motifs in the reference clusters in html reports.",
+    )
+    build.add_argument(
+        "--compound_smiles",
+        dest="compound_smiles_filepath",
+        default=None,
+        metavar="<file>",
+        help="Path to a TSV file containing bgc_id, compound_name, compound_smiles. "
+        "If provided, compound structures will be visualized in the html reports.",
+    )
 
     detect = subparsers.add_parser(
         "detect",

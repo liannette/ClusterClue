@@ -2,12 +2,6 @@ import logging
 from pathlib import Path
 from clusterclue.clusters.tokenize.orchestrator import TokenizeOrchestrator
 from clusterclue.clusters.orchestrator import PreprocessOrchestrator
-from clusterclue.presto_stat.orchestrator import StatOrchestrator
-from clusterclue.presto_top.orchestrator import TopOrchestrator
-from clusterclue.gwms.create_motifs import generate_subcluster_motifs
-from clusterclue.gwms.select_best import select_best_motif_set, visualize_evaluation_results
-from clusterclue.evaluate.presto_predictions import evaluate_presto_stat, evaluate_presto_top
-from clusterclue.gwms.detect_motifs import detect_gwms_in_clusters, visualise_gwm_hits
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +13,14 @@ def create_new_motifs(
     """
     Runs the entire pipeline.
     """
+    # import here to avoid importing heavy dependencies (e.g. gensim) when 
+    # the user only wants to detect existing motifs
+    from clusterclue.presto_stat.orchestrator import StatOrchestrator
+    from clusterclue.presto_top.orchestrator import TopOrchestrator
+    from clusterclue.gwms.create_motifs import generate_subcluster_motifs
+    from clusterclue.gwms.select_best import select_best_motif_set
+    from clusterclue.evaluate.presto_predictions import evaluate_presto_stat, evaluate_presto_top
+
     out_dirpath = Path(cmd.out_dir_path)
     out_dirpath.mkdir(parents=True, exist_ok=True)
 
@@ -155,18 +157,21 @@ def create_new_motifs(
         )
 
         # visualize the best motif set
-        visualize_evaluation_results(
-            motifs_dirpath,
-            ref_clusters_filepath,
-            Path(cmd.reference_gbks_dirpath),
-            Path(cmd.compound_smiles_filepath),
-        )
+        if cmd.visualise_evaluation:
+            from clusterclue.evaluate.visualize import visualize_evaluation_results
+            visualize_evaluation_results(
+                motifs_dirpath,
+                ref_clusters_filepath,
+                Path(cmd.reference_gbks_dirpath),
+                Path(cmd.compound_smiles_filepath),
+            )
 
 
 def detect_existing_motifs(
     cmd,
     log_queue,
     ):
+    from clusterclue.gwms.detect_motifs import detect_gwms_in_clusters
 
     out_dirpath = Path(cmd.out_dir_path)
     out_dirpath.mkdir(parents=True, exist_ok=True)
@@ -202,6 +207,7 @@ def detect_existing_motifs(
 
     # Step 3: Visualize detected motif hits
     if cmd.visualize_hits:
+        from clusterclue.gwms.detect_motifs import visualise_gwm_hits 
         logger.info("=== Visualizing detected motif hits ===")
         visualization_output_dirpath = out_dirpath / "hit_visualizations"
         visualization_output_dirpath.mkdir(parents=True, exist_ok=True)
