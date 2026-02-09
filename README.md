@@ -1,7 +1,7 @@
 # ClusterClue
 
-ClusterClue is a Python package for unsupervised prediction of biosynthetic cub-clusters.
-It detects co-occurring genes within BGCs and represents them as SubCluster Motifs, which are gene weight matrices that quantify the importance of individual genes. These SubCluster Motifs can be applied to any BGC, enabling systematic detection and linking of similar sub-cluster modules across BGCs.
+ClusterClue is a Python package for prediction of novel biosynthetic sub-clusters.
+It detects co-occurring genes within BGCs and represents them as SubCluster Motifs, which are gene weight matrices that quantify the importance of individual genes. These SubCluster Motifs can be applied to any BGC, enabling systematic detection and linking of similar sub-clusters across BGCs.
 
 
 ## Installation
