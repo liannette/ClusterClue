@@ -1,5 +1,0 @@
-include *.txt
-include *.md
-include *.tsv
-include *.png
-include LICENSE
