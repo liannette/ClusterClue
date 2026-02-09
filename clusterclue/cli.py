@@ -305,8 +305,8 @@ def get_commands():
         "--gwms",
         dest="gwms_filepath",
         required=True,
-        metavar="<dir>",
-        help="Input directory containing gene weight matrices (GWMs) of subcluster motifs.",
+        metavar="<file>",
+        help="Input file containing gene weight matrices (GWMs) of subcluster motifs.",
     )
     detect.add_argument(
         "--out",

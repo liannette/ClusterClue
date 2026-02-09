@@ -62,7 +62,7 @@ clusterclue detect \
 Full options (clusterclue detect -h):
 
 ```text
---gwms <dir>            Input directory containing gene weight matrices (GWMs) of subcluster motifs.
+--gwms <file>           Input file containing gene weight matrices (GWMs) of subcluster motifs.
 --out <dir>             Output directory, this will contain all output data files.
 --gbks <dir>            Input directory containing gbk files of the gene clusters.
 --hmm <file>            Path to the HMM file containing protein domain HMMs that has been processed with hmmpress.
