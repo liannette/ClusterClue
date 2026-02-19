@@ -120,7 +120,7 @@ def visualise_gwm_hits(
         domain_hits_file=domain_hits_filepath,
         motif_hits_file=motif_hits_filepath,
         compounds_file=compound_structures_filepath,
-        domain_colors_file=Path(files("clusterclue").joinpath("data"))
+        domain_colors_file=Path(files("clusterclue").joinpath("data").joinpath("domain_colors.txt"))
     )
     session.load()
 
