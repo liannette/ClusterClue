@@ -26,6 +26,12 @@ def select_best_motif_set(
         Higher values penalize more. Uses harmonic decay: penalty = 1/(1 + α(n-1)).
         default is 0.5, which moderately penalizes multiple hits per subcluster.
     """
+    # Convert to Path objects if they are strings
+    output_dirpath = Path(output_dirpath)
+    gwms_dirpath = Path(gwms_dirpath)
+    reference_subclusters_filepath = Path(reference_subclusters_filepath)
+    clusters_filepath = Path(clusters_filepath)
+
 
     logger.info("Reading annotated subclusters file and adding tokenized genes")
     
@@ -37,7 +43,7 @@ def select_best_motif_set(
 
     # Detect motifs and evaluate motif hits for each motif file
     evaluation_scores = list()
-    for motifs_filepath in sorted(Path(gwms_dirpath).iterdir()):
+    for motifs_filepath in sorted(gwms_dirpath.iterdir()):
         motif_set_id = motifs_filepath.stem
         motif_gwms = parse_motifs_file(motifs_filepath)
         motif_hits = detect_motifs(clusters, motif_gwms)
