@@ -55,7 +55,7 @@ class PreprocessOrchestrator:
 
         # Tokenize genes into protein domain combinations
         clusters_file_path = out_dir / "clusters.csv"
-        gene_counts_file_path = out_dir / "clusters.txt"
+        gene_counts_file_path = out_dir / "clusters_gene_counts.txt"
         if clusters_file_path.is_file():
             logger.info(f"Skipping tokenisation step, because the file already exists: {clusters_file_path}")
         else:

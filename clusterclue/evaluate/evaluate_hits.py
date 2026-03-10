@@ -115,8 +115,12 @@ def calculate_penalized_f1(
     return f1 * penalty
 
 
-def assign_best_hit(row: pd.Series, hits: Dict[str, List[MotifHit | PrestoHit]]) -> dict:
-    """Find the best hit for a given row of annotated subclusters."""
+def assign_best_hit(row: pd.Series, hits: Dict[str, List[MotifHit | PrestoHit]], alpha: float = 0.25) -> dict:
+    """Find the best hit for a given row of annotated subclusters.
+    alpha is set to 0.25 based on manual evaluation of motif sets, 
+    but can be adjusted based on the desired penalty strength. 
+    Higher values (e.g. 0.5) penalize more than lower values (e.g. 0.1).
+    """
     mibig_acc = row["mibig_acc"]
     annotated_genes = set(row["tokenized_genes"])
 
@@ -149,7 +153,6 @@ def assign_best_hit(row: pd.Series, hits: Dict[str, List[MotifHit | PrestoHit]])
 
     if overlapping_hits:
         best_hit = max(overlapping_hits, key=lambda x: x["overlap_score"])
-        alpha = 0.25 # moderately penalize multiple motif hits per subcluster
         n_overlapping_hits = len(overlapping_hits)
         penalized_f1 = calculate_penalized_f1(best_hit["overlap_score"], n_overlapping_hits, alpha)
         best_hit["n_overlapping_hits"] = n_overlapping_hits
@@ -174,10 +177,11 @@ def assign_best_hit(row: pd.Series, hits: Dict[str, List[MotifHit | PrestoHit]])
 
 def get_best_hits(
     ref_subclusters: pd.DataFrame,
-    hits: Dict[str, List[MotifHit | PrestoHit]]
+    hits: Dict[str, List[MotifHit | PrestoHit]],
+    alpha: float = 0.25,
 ) -> pd.DataFrame:
     best_hits = pd.DataFrame(
-        ref_subclusters.apply(lambda row: assign_best_hit(row, hits), axis=1).tolist()
+        ref_subclusters.apply(lambda row: assign_best_hit(row, hits, alpha=alpha), axis=1).tolist()
     )
     return best_hits
 

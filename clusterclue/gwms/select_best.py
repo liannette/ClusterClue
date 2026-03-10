@@ -18,11 +18,23 @@ def select_best_motif_set(
     gwms_dirpath: str | Path,
     reference_subclusters_filepath: str | Path,
     clusters_filepath: str | Path,
+    overlap_penalty_alpha: float = 0.5,
     ):
-    """Selects the best motif set based on F1-score against annotated subclusters."""
+    """Selects the best motif set based on overlap score against annotated subclusters.
+    
+    overlap_penalty_alpha: Penalty factor for redundant hits per subcluster (0=no penalty).
+        Higher values penalize more. Uses harmonic decay: penalty = 1/(1 + α(n-1)).
+        default is 0.5, which moderately penalizes multiple hits per subcluster.
+    """
+    # Convert to Path objects if they are strings
+    output_dirpath = Path(output_dirpath)
+    gwms_dirpath = Path(gwms_dirpath)
+    reference_subclusters_filepath = Path(reference_subclusters_filepath)
+    clusters_filepath = Path(clusters_filepath)
+
 
     logger.info("Reading annotated subclusters file and adding tokenized genes")
-    
+
     clusters = parse_clusters_file(clusters_filepath)
     domain_hits_filepath = clusters_filepath.parent / "all_domain_hits.txt"
     ref_subclusters = read_reference_subclusters_and_tokenize_genes(
@@ -31,15 +43,15 @@ def select_best_motif_set(
 
     # Detect motifs and evaluate motif hits for each motif file
     evaluation_scores = list()
-    for motifs_filepath in sorted(Path(gwms_dirpath).iterdir()):
+    for motifs_filepath in sorted(gwms_dirpath.iterdir()):
         motif_set_id = motifs_filepath.stem
         motif_gwms = parse_motifs_file(motifs_filepath)
         motif_hits = detect_motifs(clusters, motif_gwms)
 
         # Evaluate motif hits against annotated subclusters
-        best_hits = get_best_hits(ref_subclusters, motif_hits)
+        best_hits = get_best_hits(ref_subclusters, motif_hits, alpha=overlap_penalty_alpha)
         avg_overlap_score, avg_penalized_overlap_score = calculate_evaluation(best_hits)
-        logger.info(f"Motif_set: {motif_set_id}, Mean Overlap Score: {avg_overlap_score}, Mean Redundancy Penalized Overlap Score: {avg_penalized_overlap_score}")
+        logger.info(f"Motif_set: {motif_set_id}, n_motifs: {len(motif_gwms)}, MOS: {avg_overlap_score}, MRPOS: {avg_penalized_overlap_score}")
         
         evaluation_scores.append({
             "best_hits": best_hits,
@@ -57,7 +69,12 @@ def select_best_motif_set(
 
     # Select the best motif set based on penalized F1-score
     best_motif_set = max(evaluation_scores, key=lambda x: x["mean_redundancy_penalised_overlap_score"])
-    logger.info(f"Best motif set: {best_motif_set['motif_set_id']}, Mean Overlap Score (MOS): {best_motif_set['mean_overlap_score']:.4f}, Mean Redundancy Penalised Overlap Score (MRPOS): {best_motif_set['mean_redundancy_penalised_overlap_score']:.4f}")
+    logger.info(
+        f"Best motif set: {best_motif_set['motif_set_id']}, "
+        f"n_motifs: {len(parse_motifs_file(best_motif_set['motif_file']))}, "
+        f"Mean Overlap Score (MOS): {best_motif_set['mean_overlap_score']:.4f}, "
+        f"Mean Redundancy Penalised Overlap Score (MRPOS): {best_motif_set['mean_redundancy_penalised_overlap_score']:.4f}"
+        )
 
     #write_evaluation_results(ref_subclusters, best_motif_set, output_dirpath)
 
