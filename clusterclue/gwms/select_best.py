@@ -18,8 +18,14 @@ def select_best_motif_set(
     gwms_dirpath: str | Path,
     reference_subclusters_filepath: str | Path,
     clusters_filepath: str | Path,
+    overlap_penalty_alpha: float = 0.5,
     ):
-    """Selects the best motif set based on F1-score against annotated subclusters."""
+    """Selects the best motif set based on overlap score against annotated subclusters.
+    
+    overlap_penalty_alpha: Penalty factor for redundant hits per subcluster (0=no penalty).
+        Higher values penalize more. Uses harmonic decay: penalty = 1/(1 + α(n-1)).
+        default is 0.5, which moderately penalizes multiple hits per subcluster.
+    """
 
     logger.info("Reading annotated subclusters file and adding tokenized genes")
     
@@ -37,7 +43,7 @@ def select_best_motif_set(
         motif_hits = detect_motifs(clusters, motif_gwms)
 
         # Evaluate motif hits against annotated subclusters
-        best_hits = get_best_hits(ref_subclusters, motif_hits)
+        best_hits = get_best_hits(ref_subclusters, motif_hits, alpha=overlap_penalty_alpha)
         avg_overlap_score, avg_penalized_overlap_score = calculate_evaluation(best_hits)
         logger.info(f"Motif_set: {motif_set_id}, Mean Overlap Score: {avg_overlap_score}, Mean Redundancy Penalized Overlap Score: {avg_penalized_overlap_score}")
         
