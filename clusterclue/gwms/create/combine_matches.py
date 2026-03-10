@@ -43,7 +43,10 @@ def read_top_subcluster_matches(input_filepath):
 
 
 def combine_presto_matches(stat_matches_filepath, top_matches_filepath, output_filepath):
-
+    logger.info(
+        f"Combining presto subcluster matches from {stat_matches_filepath} "
+        f"and {top_matches_filepath}"
+    )
     # Load clusterclue subcluster predictions
     stat_matches = read_stat_subcluster_matches(stat_matches_filepath)
     top_matches = read_top_subcluster_matches(top_matches_filepath)

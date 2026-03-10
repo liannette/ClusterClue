@@ -66,14 +66,14 @@ def build_motif_gwms(
         motif._filter_low_probabilities(min_gene_prob)
 
         # check if motif passes filter
-        if len(motif.tokenized_genes) < 2:
-            n_low_genes += 1
+        if not passes_min_matches(motif.n_matches, min_matches):
+            n_low_matches += 1
             continue
         if not passes_min_core_genes(motif.probabilities, min_core_genes, core_threshold):
             n_low_core_genes += 1
             continue
-        if not passes_min_matches(motif.n_matches, min_matches):
-            n_low_matches += 1
+        if len(motif.tokenized_genes) < 2:
+            n_low_genes += 1
             continue
 
         motif.generate_gwm_with_threshold(background_counts, n_clusters)
@@ -90,9 +90,9 @@ def build_motif_gwms(
 
     logger.info(
         f"Build {n_filtered} ({p_filtered:.2f}%) gene weight matrices for {n_initial} motifs. " 
-        f"Removed {n_low_genes} ({p_low_genes:.2f}%) due to low gene number, "
+        f"Removed {n_low_matches} ({p_low_matches:.2f}%) due to low matches, "
         f"{n_low_core_genes} ({p_low_core_genes:.2f}%) due to low core genes, "
-        f"and {n_low_matches} ({p_low_matches:.2f}%) due to low matches."
+        f"and {n_low_genes} ({p_low_genes:.2f}%) due to low gene number."
         )
     return filtered_motifs
 
