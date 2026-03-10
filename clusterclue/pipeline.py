@@ -156,15 +156,15 @@ def create_new_motifs(
             clusters_filepath=ref_clusters_filepath,
         )
 
-        # visualize the best motif set
-        if cmd.visualise_evaluation:
-            from clusterclue.evaluate.visualize import visualize_evaluation_results
-            visualize_evaluation_results(
-                motifs_dirpath,
-                ref_clusters_filepath,
-                Path(cmd.reference_gbks_dirpath),
-                Path(cmd.compound_smiles_filepath),
-            )
+    # visualize the best motif set
+    if cmd.visualise_evaluation:
+        from clusterclue.evaluate.visualize import visualize_evaluation_results
+        visualize_evaluation_results(
+            motifs_dirpath,
+            ref_clusters_filepath,
+            Path(cmd.reference_gbks_dirpath),
+            Path(cmd.compound_smiles_filepath),
+        )
 
 
 def detect_existing_motifs(
@@ -219,4 +219,3 @@ def detect_existing_motifs(
             compound_structures_filepath=cmd.compound_smiles_filepath,
             output_dirpath=visualization_output_dirpath,
         )
-
