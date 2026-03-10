@@ -145,6 +145,7 @@ def create_new_motifs(
             clusters_file_path,
             stat_matches_filepath,
             top_matches_filepath,
+            cmd.target_variance_explained,
             cmd.k_values,
             motifs_dirpath,
         )

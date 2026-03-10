@@ -13,6 +13,7 @@ from clusterclue.clusters.utils import read_clusters
 from clusterclue.gwms.create.combine_matches import combine_presto_matches
 from clusterclue.gwms.create.build_gwms import build_motif_gwms, write_motif_gwms
 from clusterclue.classes.subcluster_motif import SubclusterMotif
+from clusterclue.gwms.create.kmeans_clustering import run_kmeans_pipeline
 
 logger = logging.getLogger(__name__)
 
@@ -112,12 +113,13 @@ def generate_subcluster_motifs(
     clusters_filepath: Path,        
     stat_matches_filepath: Path,
     top_matches_filepath: Path,
+    target_variance_explained: float,
     k_values: list[int],
     out_dirpath: Path,
-    min_matches = (5, 10, 20),
-    min_core_genes = (1, 2),
-    core_threshold = (0.6, 0.7, 0.8),
-    min_gene_prob = (0.1, 0.2, 0.3),
+    min_matches = (10, 20),
+    min_core_genes = (2,),
+    core_threshold = (0.8, 0.9, 0.95, 1.0),
+    min_gene_prob = (0.2, 0.3),
     ):
 
     matches_dirpath = out_dirpath / "matches"
@@ -146,20 +148,33 @@ def generate_subcluster_motifs(
     modules = list(module2bgcs.keys())
     logger.info
 
+    # subsample for quick diagnostics
+    run_kmeans_pipeline(
+        modules,
+        k_values=k_values,
+        use_svd=True,
+        target_variance=target_variance_explained,
+        n_init=3,
+        n_jobs=1,
+        outdir=out_dirpath / "kmeans_subsample",
+        subsample_n=50_000,
+    )
+
+    all_labels, mlb, results = run_kmeans_pipeline(
+        modules,
+        k_values        = k_values,
+        use_svd         = True,
+        target_variance = target_variance_explained,
+        n_init          = 3,
+        n_jobs          = 1,
+        outdir          = out_dirpath / "kmeans",
+        subsample_n     = None,
+    )
     gwms_dirpath = out_dirpath / "gwms"
     gwms_dirpath.mkdir(parents=True, exist_ok=True)
 
-    X_sparse = create_sparse_matrix(modules)
+    for k, labels in all_labels.items():
 
-    logger.info(f"Created sparse matrix with shape {X_sparse.shape} modules.")
-    batch_size = get_auto_batch_size(X_sparse.shape[0])
-
-    for k in k_values:
-        subout_dirpath = out_dirpath / f"kmeans_{k}"
-        subout_dirpath.mkdir(parents=True, exist_ok=True)
-        
-        labels = minibatch_kmeans_clustering(X_sparse, k, batch_size)
-        
         padding = len(str(k)) # Calculate padding based on k
         module2label = {m: f"M{label+1:0{padding}d}" for m, label in zip(modules, labels)}
 
