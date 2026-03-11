@@ -7,8 +7,7 @@ from typing import Dict, DefaultDict
 
 from clusterclue.clusters.utils import read_clusters
 from clusterclue.gwms.create.combine_matches import combine_presto_matches
-#from clusterclue.gwms.create.cluster_matches import cluster_modules
-from clusterclue.gwms.create.hdbscan_clustering import run_clustering_pipeline
+from clusterclue.gwms.create.cluster_matches import find_optimal_k
 from clusterclue.gwms.create.build_gwms import build_motif_gwms, write_motif_gwms
 from clusterclue.classes.subcluster_motif import SubclusterMotif
 
@@ -78,9 +77,8 @@ def generate_subcluster_motifs(
     clusters_filepath: Path,        
     stat_matches_filepath: Path,
     top_matches_filepath: Path,
-    out_dirpath: Path,
-    n_comp_list: list[int],
-    n_cores: int
+    k_values: list[int],
+    out_dirpath: Path
     ):
 
     matches_dirpath = out_dirpath / "matches"
@@ -108,36 +106,14 @@ def generate_subcluster_motifs(
         module2bgcs[module].append(bgc_id)
     modules = list(module2bgcs.keys())
 
-    # Development run — subsample for speed
-    run_clustering_pipeline(
-        modules,
-        target_variance  = 0.50,
-        min_cluster_size = 20,
-        cluster_method   = 'eom',
-        epsilon          = 0.0,
-        n_jobs           = n_cores,
-        outdir           = out_dirpath / "development_clustering",
-        scan_epsilons    = True,
-        subsample_n      = 50_000,
-    )
-
-    # Production run — full dataset
-    labels, n_components, mlb = run_clustering_pipeline(
-        modules,
-        target_variance  = 0.50,
-        min_cluster_size = 20,
-        cluster_method   = 'eom',
-        epsilon          = 0.0,
-        n_jobs           = n_cores,
-        outdir           = out_dirpath,
-        scan_epsilons    = False,
-        subsample_n      = None,
-    )
-
-    n_labels = len(set(labels)) - (1 if -1 in labels else 0)
-
-    padding = len(str(n_labels)) # Calculate padding based on k
-    module2label = {m: f"M{label+1:0{padding}d}" for m, label in zip(modules, labels) if label != -1} # assign label M0 to noise points (-1)
+    # select best k based
+    optimal_k, optimal_labels = find_optimal_k(
+        modules, 
+        k_values, 
+        out_dirpath
+        )
+    padding = len(str(optimal_k)) # Calculate padding based on k
+    module2label = {m: f"M{label+1:0{padding}d}" for m, label in zip(modules, optimal_labels)}
 
     # collapse matches per BGC and per label
     # if there are multiple subcluster modules with the same label in the same BGC they should be merged into one match
@@ -155,8 +131,8 @@ def generate_subcluster_motifs(
 
 
     # write clustered matches to file
-    clustered_matches_filepath = matches_dirpath / f"matches_comp{n_components}.txt"
-    gene_probs_filepath = matches_dirpath / f"probabilities_comp{n_components}.txt"
+    clustered_matches_filepath = matches_dirpath / f"matches_k{optimal_k}.txt"
+    gene_probs_filepath = matches_dirpath / f"probabilities_k{optimal_k}.txt"
     write_matches_per_group(subcluster_motifs, clustered_matches_filepath)
     write_gene_probabilities(subcluster_motifs, gene_probs_filepath)
     logger.info(f"Wrote grouped subcluster predictions to {clustered_matches_filepath} and gene probabilities to {gene_probs_filepath}")
@@ -166,10 +142,10 @@ def generate_subcluster_motifs(
     gwms_dirpath.mkdir(parents=True, exist_ok=True)
 
     # TODO: make these hyperparameters configurable
-    min_matches = (10, 20)
-    min_core_genes = (2,)
-    core_threshold = (0.8, 0.9, 0.95, 1.0)
-    min_gene_prob = (0.1, 0.2)
+    min_matches = (5, 10, 20)
+    min_core_genes = (1, 2)
+    core_threshold = (0.6, 0.7, 0.8)
+    min_gene_prob = (0.1, 0.2, 0.3)
     hyperparams = product(
         min_matches,
         min_core_genes,
@@ -178,7 +154,7 @@ def generate_subcluster_motifs(
     )
     for mm, mgc, ct, mgp in hyperparams:
         logger.info(
-            f"Building GWMs for n_components={n_components}, min_matches={mm}, "
+            f"Building GWMs for k={optimal_k}, min_matches={mm}, "
             f"min_core_genes={mgc}, core_threshold={ct}, "
             f"min_gene_prob={mgp}...")
             
@@ -192,73 +168,7 @@ def generate_subcluster_motifs(
             mgp
             )
 
-        motif_filepath = gwms_dirpath / f"GWMs_comp{n_components}_mm{mm}_mgc{mgc}_ct{int(ct * 100)}_mgp{int(mgp * 100)}.txt"
+        motif_filepath = gwms_dirpath / f"GWMs_k{optimal_k}_mm{mm}_mgc{mgc}_ct{int(ct * 100)}_mgp{int(mgp * 100)}.txt"
         write_motif_gwms(motifs_with_gwms, motif_filepath)
 
     return gwms_dirpath
-
-
-    # for n_components in n_comp_list:
-    #     labels = cluster_modules(modules, n_components, outdir=out_dirpath, n_cores=n_cores)
-    #     n_labels = len(set(labels)) - (1 if -1 in labels else 0)
-
-    #     padding = len(str(n_labels)) # Calculate padding based on k
-    #     module2label = {m: f"M{label+1:0{padding}d}" for m, label in zip(modules, labels) if label != -1} # assign label M0 to noise points (-1)
-
-    #     # collapse matches per BGC and per label
-    #     # if there are multiple subcluster modules with the same label in the same BGC they should be merged into one match
-    #     label_to_bgc_matches = collapse_grouped_matches(module2label, module2bgcs)
-
-    #     # Now, create SubclusterMotif objects per label
-    #     subcluster_motifs = dict()
-    #     for label, bgc_match in label_to_bgc_matches.items():
-    #         motif = SubclusterMotif(
-    #             motif_id=label,
-    #             matches={bgc_id: sorted(genes) for bgc_id, genes in bgc_match.items()}
-    #             )
-    #         motif.calculate_gene_probabilities()
-    #         subcluster_motifs[label] = motif
-
-
-    #     # write clustered matches to file
-    #     clustered_matches_filepath = matches_dirpath / f"matches_comp{n_components}.txt"
-    #     gene_probs_filepath = matches_dirpath / f"probabilities_comp{n_components}.txt"
-    #     write_matches_per_group(subcluster_motifs, clustered_matches_filepath)
-    #     write_gene_probabilities(subcluster_motifs, gene_probs_filepath)
-    #     logger.info(f"Wrote grouped subcluster predictions to {clustered_matches_filepath} and gene probabilities to {gene_probs_filepath}")
-
-    #     # build GWMs for optimal k
-    #     gwms_dirpath = out_dirpath / "gwms"
-    #     gwms_dirpath.mkdir(parents=True, exist_ok=True)
-
-    #     # TODO: make these hyperparameters configurable
-    #     min_matches = (10,)
-    #     min_core_genes = (2,)
-    #     core_threshold = (0.8,)
-    #     min_gene_prob = (0.1,)
-    #     hyperparams = product(
-    #         min_matches,
-    #         min_core_genes,
-    #         core_threshold,
-    #         min_gene_prob,
-    #     )
-    #     for mm, mgc, ct, mgp in hyperparams:
-    #         logger.info(
-    #             f"Building GWMs for n_components={n_components}, min_matches={mm}, "
-    #             f"min_core_genes={mgc}, core_threshold={ct}, "
-    #             f"min_gene_prob={mgp}...")
-                
-    #         motifs_with_gwms = build_motif_gwms(
-    #             subcluster_motifs, 
-    #             gene_bg_counts, 
-    #             n_clusters, 
-    #             mm, 
-    #             mgc, 
-    #             ct, 
-    #             mgp
-    #             )
-
-    #         motif_filepath = gwms_dirpath / f"GWMs_comp{n_components}_mm{mm}_mgc{mgc}_ct{int(ct * 100)}_mgp{int(mgp * 100)}.txt"
-    #         write_motif_gwms(motifs_with_gwms, motif_filepath)
-
-    # return gwms_dirpath

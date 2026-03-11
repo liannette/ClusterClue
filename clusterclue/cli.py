@@ -257,14 +257,13 @@ def get_commands():
     )
     # GWMs
     build.add_argument(
-        "--n_comp",
-        dest="n_comp_list",
+        "--k_values",
         nargs="+",
         type=int,
-        default=[100,],
+        default=[1500,],
         metavar="<int>",
-        help="Specify one or more integers to define the number of components "
-        "for dimensionality reduction when generating the motifs (default: 100).",
+        help="Specify one or more integers to define the number of motifs (GWMS). "
+        "Each integer represents a different clustering configuration (default: 1500).",
     )
     build.add_argument(
         "--ref_sc",
