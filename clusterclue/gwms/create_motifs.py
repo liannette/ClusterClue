@@ -175,7 +175,7 @@ def generate_subcluster_motifs(
     for bgc_id, module in combined_matches:
         module2bgcs[module].append(bgc_id)
     modules = list(module2bgcs.keys())
-    logger.info
+    logger.info(f"Found {len(modules)} unique subcluster modules in combined matches")
 
     # subsample for quick diagnostics
     run_kmeans_pipeline(
