@@ -7,8 +7,8 @@ from typing import Dict, DefaultDict
 
 from clusterclue.clusters.utils import read_clusters
 from clusterclue.gwms.create.combine_matches import combine_presto_matches
-#from clusterclue.gwms.create.cluster_matches import cluster_modules
 from clusterclue.gwms.create.hdbscan_clustering import run_clustering_pipeline
+from clusterclue.gwms.create.merge_motifs import merge_similar_motifs
 from clusterclue.gwms.create.build_gwms import build_motif_gwms, write_motif_gwms
 from clusterclue.classes.subcluster_motif import SubclusterMotif
 
