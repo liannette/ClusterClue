@@ -225,7 +225,7 @@ def write_index_html(index_html_path, index_entries):
             motif_ids_str = ", ".join(entry["motif_ids"]) if entry["motif_ids"] else "None"
             f.write(textwrap.dedent(f"""\
                 <tr>
-                  <td><a href="{entry['href']}" class="sc-link">{entry['subcluster']}</a></td>
+                  <td><a href="{entry['href']}" class="sc-link">{entry['subcluster_id']}</a></td>
                   <td>{entry['bgc_id'] or 'N/A'}</td>
                   <td>{entry['substructure_name'] or 'N/A'}</td>
                   <td>{entry['substructure_class'] or 'N/A'}</td>
