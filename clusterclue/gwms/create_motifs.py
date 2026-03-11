@@ -74,6 +74,71 @@ def collapse_grouped_matches(
     return label_bgc_genes
 
 
+def merge_motifs_and_build_gwms(
+    subcluster_motifs,
+    background_counts,
+    n_clusters,
+    min_matches,
+    min_core_genes,
+    core_threshold,
+    min_gene_prob,
+    merge_similarity_threshold=0.8,
+    merge_gene_threshold=0.1,
+    similarity_metric='weighted'
+):
+    """
+    Merges similar motifs, then builds GWMs for the merged motifs.
+    
+    Args:
+        subcluster_motifs: dict of SubclusterMotif objects
+        background_counts: gene background counts
+        n_clusters: total number of clusters
+        min_matches: minimum number of matches filter
+        min_core_genes: minimum number of core genes filter
+        core_threshold: probability threshold for core genes
+        min_gene_prob: minimum gene probability threshold
+        merge_similarity_threshold: minimum similarity to merge motifs (0.8 = 80%)
+        merge_gene_threshold: min probability for genes in similarity calculation
+        similarity_metric: 'jaccard' or 'weighted'
+    
+    Returns:
+        dict: filtered and merged motifs with GWMs
+    """
+    # First merge similar motifs
+    logger.info(
+        f"Merging motifs with {similarity_metric} similarity >= "
+        f"{merge_similarity_threshold} (gene_prob >= {merge_gene_threshold})..."
+    )
+    merged_motifs = merge_similar_motifs(
+        subcluster_motifs, 
+        similarity_threshold=merge_similarity_threshold,
+        gene_prob_threshold=merge_gene_threshold,
+        similarity_metric=similarity_metric
+    )
+    
+    n_original = len(subcluster_motifs)
+    n_merged = len(merged_motifs)
+    n_reduced = n_original - n_merged
+    pct_reduced = (n_reduced / n_original * 100) if n_original > 0 else 0
+    logger.info(
+        f"Reduced {n_original} motifs to {n_merged} motifs "
+        f"({n_reduced} merged, {pct_reduced:.1f}% reduction)"
+    )
+    
+    # Then apply the standard filtering and GWM building
+    filtered_motifs = build_motif_gwms(
+        merged_motifs,
+        background_counts,
+        n_clusters,
+        min_matches,
+        min_core_genes,
+        core_threshold,
+        min_gene_prob
+    )
+    
+    return filtered_motifs
+
+
 def generate_subcluster_motifs(      
     clusters_filepath: Path,        
     stat_matches_filepath: Path,
@@ -107,6 +172,7 @@ def generate_subcluster_motifs(
     for bgc_id, module in combined_matches:
         module2bgcs[module].append(bgc_id)
     modules = list(module2bgcs.keys())
+    logger.info(f"Found {len(modules)} unique subcluster modules in combined matches")
 
     # Development run — subsample for speed
     run_clustering_pipeline(
@@ -133,6 +199,8 @@ def generate_subcluster_motifs(
         scan_epsilons    = False,
         subsample_n      = None,
     )
+    gwms_dirpath = out_dirpath / "gwms"
+    gwms_dirpath.mkdir(parents=True, exist_ok=True)
 
     n_labels = len(set(labels)) - (1 if -1 in labels else 0)
 
@@ -169,7 +237,7 @@ def generate_subcluster_motifs(
     min_matches = (10, 20)
     min_core_genes = (2,)
     core_threshold = (0.8, 0.9, 0.95, 1.0)
-    min_gene_prob = (0.1, 0.2)
+    min_gene_prob = (0.2, 0.3)
     hyperparams = product(
         min_matches,
         min_core_genes,
@@ -182,7 +250,7 @@ def generate_subcluster_motifs(
             f"min_core_genes={mgc}, core_threshold={ct}, "
             f"min_gene_prob={mgp}...")
             
-        motifs_with_gwms = build_motif_gwms(
+        motifs_with_gwms = merge_motifs_and_build_gwms(
             subcluster_motifs, 
             gene_bg_counts, 
             n_clusters, 
