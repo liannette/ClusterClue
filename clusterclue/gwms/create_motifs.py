@@ -5,10 +5,6 @@ from pathlib import Path
 from collections import defaultdict
 from typing import Dict, DefaultDict
 
-from sklearn.cluster import MiniBatchKMeans
-from sklearn.preprocessing import MultiLabelBinarizer
-
-
 from clusterclue.clusters.utils import read_clusters
 from clusterclue.gwms.create.combine_matches import combine_presto_matches
 from clusterclue.gwms.create.build_gwms import build_motif_gwms, write_motif_gwms
@@ -77,36 +73,69 @@ def collapse_grouped_matches(
     return label_bgc_genes
 
 
-def create_sparse_matrix(modules):
-    mlb = MultiLabelBinarizer(sparse_output=True)
-    X = mlb.fit_transform(modules)
-    return X
-
-
-def get_auto_batch_size(n_samples):
+def merge_motifs_and_build_gwms(
+    subcluster_motifs,
+    background_counts,
+    n_clusters,
+    min_matches,
+    min_core_genes,
+    core_threshold,
+    min_gene_prob,
+    merge_similarity_threshold=0.8,
+    merge_gene_threshold=0.1,
+    similarity_metric='weighted'
+):
     """
-    Automatically determine batch size for MiniBatchKMeans.
-    - Uses ~5% of n_samples
-    - Ensures min 500 and max 50000
+    Merges similar motifs, then builds GWMs for the merged motifs.
+    
+    Args:
+        subcluster_motifs: dict of SubclusterMotif objects
+        background_counts: gene background counts
+        n_clusters: total number of clusters
+        min_matches: minimum number of matches filter
+        min_core_genes: minimum number of core genes filter
+        core_threshold: probability threshold for core genes
+        min_gene_prob: minimum gene probability threshold
+        merge_similarity_threshold: minimum similarity to merge motifs (0.8 = 80%)
+        merge_gene_threshold: min probability for genes in similarity calculation
+        similarity_metric: 'jaccard' or 'weighted'
+    
+    Returns:
+        dict: filtered and merged motifs with GWMs
     """
-    batch = max(500, int(n_samples * 0.05))  # 5% of samples
-    batch = min(batch, 50000)                # cap at 50k
-    return batch
-
-
-def minibatch_kmeans_clustering(X, k, batch_size):
-    kmeans = MiniBatchKMeans(
-        n_clusters=int(k),
-        batch_size=batch_size,
-        init="k-means++",
-        n_init=100,
-        max_iter=1000,
-        tol=1e-5,
-        random_state=42, 
-        )
-    kmeans.fit(X)
-    logger.info(f"KMeans converged in {kmeans.n_iter_} iterations (inertia: {kmeans.inertia_:.2f})")
-    return kmeans.labels_
+    # First merge similar motifs
+    logger.info(
+        f"Merging motifs with {similarity_metric} similarity >= "
+        f"{merge_similarity_threshold} (gene_prob >= {merge_gene_threshold})..."
+    )
+    merged_motifs = merge_similar_motifs(
+        subcluster_motifs, 
+        similarity_threshold=merge_similarity_threshold,
+        gene_prob_threshold=merge_gene_threshold,
+        similarity_metric=similarity_metric
+    )
+    
+    n_original = len(subcluster_motifs)
+    n_merged = len(merged_motifs)
+    n_reduced = n_original - n_merged
+    pct_reduced = (n_reduced / n_original * 100) if n_original > 0 else 0
+    logger.info(
+        f"Reduced {n_original} motifs to {n_merged} motifs "
+        f"({n_reduced} merged, {pct_reduced:.1f}% reduction)"
+    )
+    
+    # Then apply the standard filtering and GWM building
+    filtered_motifs = build_motif_gwms(
+        merged_motifs,
+        background_counts,
+        n_clusters,
+        min_matches,
+        min_core_genes,
+        core_threshold,
+        min_gene_prob
+    )
+    
+    return filtered_motifs
 
 
 def generate_subcluster_motifs(      
