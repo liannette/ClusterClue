@@ -10,6 +10,8 @@ from clusterclue.gwms.create.combine_matches import combine_presto_matches
 from clusterclue.gwms.create.build_gwms import build_motif_gwms, write_motif_gwms
 from clusterclue.classes.subcluster_motif import SubclusterMotif
 from clusterclue.gwms.create.kmeans_clustering import run_kmeans_pipeline
+from clusterclue.gwms.create.merge_motifs import merge_similar_motifs
+
 
 logger = logging.getLogger(__name__)
 
@@ -240,7 +242,7 @@ def generate_subcluster_motifs(
                 f"min_core_genes={mgc}, core_threshold={ct}, "
                 f"min_gene_prob={mgp}...")
                 
-            motifs_with_gwms = build_motif_gwms(
+            motifs_with_gwms = merge_motifs_and_build_gwms(
                 subcluster_motifs, 
                 gene_bg_counts, 
                 n_clusters, 
