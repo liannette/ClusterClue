@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ClusterClue"
-version = "0.1.0"
+version = "0.2.0"
 license = {text = "AGPL-3.0-or-later"}
 description = "Create and detect biosynthetic SubCluster Motifs in BGCs"
 readme = "README.md"
@@ -59,6 +59,8 @@ build = [
     "sympy",
     "scikit-learn",
     "networkx",
+    "hdbscan",
+    "umap-learn"
 ]
 
 [project.scripts]

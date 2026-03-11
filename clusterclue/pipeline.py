@@ -145,8 +145,9 @@ def create_new_motifs(
             clusters_file_path,
             stat_matches_filepath,
             top_matches_filepath,
-            cmd.k_values,
             motifs_dirpath,
+            cmd.n_comp_list,
+            cmd.cores
         )
 
         select_best_motif_set(

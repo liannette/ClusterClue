@@ -34,7 +34,7 @@ def select_best_motif_set(
 
 
     logger.info("Reading annotated subclusters file and adding tokenized genes")
-    
+
     clusters = parse_clusters_file(clusters_filepath)
     domain_hits_filepath = clusters_filepath.parent / "all_domain_hits.txt"
     ref_subclusters = read_reference_subclusters_and_tokenize_genes(
