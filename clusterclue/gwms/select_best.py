@@ -3,14 +3,12 @@ import pandas as pd
 from pathlib import Path
 from clusterclue.gwms.detect_motifs import detect_motifs, write_motif_hits, parse_clusters_file, parse_motifs_file
 from clusterclue.evaluate.evaluate_hits import (
-    get_best_hits, 
-    calculate_evaluation,
+    assign_best_hit,
     write_motif_evaluation,
     read_reference_subclusters_and_tokenize_genes
 )
 
 logger = logging.getLogger(__name__)
-
 
 
 def select_best_motif_set(
@@ -19,6 +17,7 @@ def select_best_motif_set(
     reference_subclusters_filepath: str | Path,
     clusters_filepath: str | Path,
     overlap_penalty_alpha: float = 0.5,
+    overlap_penalty_beta: float = 2.0
     ):
     """Selects the best motif set based on overlap score against annotated subclusters.
     
@@ -49,34 +48,52 @@ def select_best_motif_set(
         motif_hits = detect_motifs(clusters, motif_gwms)
 
         # Evaluate motif hits against annotated subclusters
-        best_hits = get_best_hits(ref_subclusters, motif_hits, alpha=overlap_penalty_alpha)
-        avg_overlap_score, avg_penalized_overlap_score = calculate_evaluation(best_hits)
-        logger.info(f"Motif_set: {motif_set_id}, n_motifs: {len(motif_gwms)}, MOS: {avg_overlap_score}, MRPOS: {avg_penalized_overlap_score}")
+        best_hits = pd.DataFrame(
+            ref_subclusters.apply(
+                lambda row: assign_best_hit(
+                    row, motif_hits, 
+                    alpha=overlap_penalty_alpha, beta=overlap_penalty_beta
+                ), axis=1
+            ).tolist()
+        )
+        mean_overlap_score = best_hits["overlap_score"].mean()
+        mean_penalized_score = best_hits["penalized_score"].mean()
+
+        logger.info(
+            f"Motif_set: {motif_set_id}, "
+            f"n_motifs: {len(motif_gwms)}, "
+            f"Score: {round(mean_overlap_score, 4)}, "
+            f"Penalized Score (alpha={overlap_penalty_alpha}, beta={overlap_penalty_beta}): "
+            f"{round(mean_penalized_score, 4)}"
+        )
         
         evaluation_scores.append({
             "best_hits": best_hits,
-            "mean_overlap_score": avg_overlap_score,
-            "mean_redundancy_penalised_overlap_score": avg_penalized_overlap_score,
+            "mean_overlap_score": mean_overlap_score,
+            "mean_penalized_score": mean_penalized_score,
             "motif_set_id": motif_set_id,
+            "n_motifs": len(motif_gwms),
             "motif_file": motifs_filepath,
             "motif_hits": motif_hits,
         })
 
     # Save final scores to a tsv file
     out_file_path = output_dirpath / "evaluation_scores.tsv"
-    pd.DataFrame(evaluation_scores)[["motif_set_id", "mean_overlap_score", "mean_redundancy_penalised_overlap_score"]].to_csv(out_file_path, sep="\t", index=False)
+    evaluation_scores_df = pd.DataFrame(evaluation_scores)[["motif_set_id", "mean_overlap_score", "mean_penalized_score"]]
+    # round
+    evaluation_scores_df["mean_overlap_score"] = evaluation_scores_df["mean_overlap_score"].round(4)
+    evaluation_scores_df["mean_penalized_score"] = evaluation_scores_df["mean_penalized_score"].round(4)
+    evaluation_scores_df.to_csv(out_file_path, sep="\t", index=False)
     logger.info(f"Wrote all motif set evaluation scores to {out_file_path}")
 
     # Select the best motif set based on penalized F1-score
-    best_motif_set = max(evaluation_scores, key=lambda x: x["mean_redundancy_penalised_overlap_score"])
+    best_motif_set = max(evaluation_scores, key=lambda x: x["mean_penalized_score"])
     logger.info(
-        f"Best motif set: {best_motif_set['motif_set_id']}, "
-        f"n_motifs: {len(parse_motifs_file(best_motif_set['motif_file']))}, "
-        f"Mean Overlap Score (MOS): {best_motif_set['mean_overlap_score']:.4f}, "
-        f"Mean Redundancy Penalised Overlap Score (MRPOS): {best_motif_set['mean_redundancy_penalised_overlap_score']:.4f}"
+        f"Best motif set with best penalized score: {best_motif_set['motif_set_id']} ({best_motif_set['n_motifs']} motifs) "
+        f"Mean Overlap Score: {round(best_motif_set['mean_overlap_score'], 4)}, "
+        f"Mean Penalized Score (alpha={overlap_penalty_alpha}, beta={overlap_penalty_beta}): "
+        f"{round(best_motif_set['mean_penalized_score'], 4)}"
         )
-
-    #write_evaluation_results(ref_subclusters, best_motif_set, output_dirpath)
 
     # output files
     motif_gwms_filepath = output_dirpath / "motif_gwms.txt"
