@@ -378,18 +378,6 @@ def get_commands():
 
 
 def main():
-    """
-    Main function to execute the iPRESTO pipeline.
-
-    This function retrieves command line arguments, prints them if verbose mode is enabled,
-    and then runs the main pipeline with the provided arguments.
-
-    Parameters:
-    None
-
-    Returns:
-    None
-    """
     start_time = time.time()
 
     cmd = get_commands()
@@ -397,7 +385,7 @@ def main():
     Path(cmd.out_dir_path).mkdir(parents=True, exist_ok=True)
     log_file_path = Path(cmd.out_dir_path) / "clusterclue.log"
 
-    # Set up multiprocessing-friendly logging
+    # multiprocessing-friendly logging
     queue = Queue(-1)
     listener = Process(target=listener_process, args=(queue, log_file_path, cmd.verbose))
     listener.start()
@@ -405,22 +393,32 @@ def main():
     logger = logging.getLogger("clusterclue.cli")
     logger.info("Command: %s", " ".join(sys.argv))
 
-    if cmd.mode == "build":
-        create_new_motifs(cmd, queue)
+    exit_code = 0
+    try:
+        if cmd.mode == "build":
+            create_new_motifs(cmd, queue)
+        elif cmd.mode == "detect":
+            detect_existing_motifs(cmd, queue)
 
-    elif cmd.mode == "detect":
-        detect_existing_motifs(cmd, queue)
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        hours, remainder = divmod(elapsed_time, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        logger.info("Total runtime: %d hours and %d minutes", int(hours), int(minutes))
 
-    end_time = time.time()
-    elapsed_time = end_time - start_time
-    hours, remainder = divmod(elapsed_time, 3600)
-    minutes, seconds = divmod(remainder, 60)
-    logger.info("Total runtime: %d hours and %d minutes", int(hours), int(minutes))
+    except Exception as e:
+        # Log the full traceback so it appears in the log file
+        logger.exception(f"Pipeline failed with error: {e}")
+        exit_code = 1
 
-    queue.put(None)
-    listener.join()
-    queue.close()
-    queue.join_thread()
+    finally:
+        # Always shut down the listener cleanly regardless of success or failure
+        queue.put(None)
+        listener.join()
+        queue.close()
+        queue.join_thread()
+
+    sys.exit(exit_code)  # non-zero exit code triggers set -e in bash
 
 
 if __name__ == "__main__":
