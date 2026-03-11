@@ -32,11 +32,14 @@ def visualize_evaluation_results(
 
     mibig_compounds = read_compounds(mibig_compounds_filepath)
 
-    subclusters = list()
+    out_html_dirpath = motifs_dirpath / "ref_subclusters_hits"
+    out_html_dirpath.mkdir(exist_ok=True, parents=True)
+
+    subclusters = dict()
     with open(evaluation_best_hits_filepath, "r") as infile:
         reader = csv.DictReader(infile, delimiter="\t")
         for row in reader:
-            subclusters.append({
+            subclusters[row["subcluster_id"]] = {
                 "id": row["subcluster_id"],
                 "bgc_id": row["mibig_acc"],
                 "compound_name": row["bgc_product"],
@@ -48,10 +51,10 @@ def visualize_evaluation_results(
                 "pathway_quality": row["pathway quality"],
                 "pubmed_id": [],
                 "orig_seq": "N/A",
-            })
-
-    out_html_dirpath = motifs_dirpath / "ref_subclusters_hits"
-    out_html_dirpath.mkdir(exist_ok=True, parents=True)
+                "best_motif_hit": row["motif_id"],
+                "overlap_score": row["overlap_score"],
+                "penalized_score": row["penalized_score"],
+            }
 
     index_entries = []
 
@@ -91,6 +94,9 @@ def visualize_evaluation_results(
                 "subcluster_id": subcluster["id"],
                 "substructure_name": subcluster["substructure_name"],
                 "substructure_class": subcluster["substructure_class"],
+                "best_motif_hit": subcluster["best_motif_hit"],
+                "overlap_score": subcluster["overlap_score"],
+                "penalized_score": subcluster["penalized_score"],
                 "bgc_id": bgc_id,
                 "motif_ids": motif_ids
             }
@@ -212,9 +218,12 @@ def write_index_html(index_html_path, index_entries):
                       <thead>
                         <tr>
                           <th>Subcluster ID</th>
-                          <th>MiBIG accession</th>
                           <th>Substructure name</th>
                           <th>Substructure class</th>
+                          <th>Best Motif Hit</th>
+                          <th>Overlap Score</th>
+                          <th>Penalized Score</th>
+                          <th>MiBIG accession</th>
                           <th>Detected motif IDs</th>
                         </tr>
                       </thead>
@@ -229,6 +238,10 @@ def write_index_html(index_html_path, index_entries):
                   <td>{entry['bgc_id'] or 'N/A'}</td>
                   <td>{entry['substructure_name'] or 'N/A'}</td>
                   <td>{entry['substructure_class'] or 'N/A'}</td>
+                  <td>{entry['best_motif_hit'] or 'N/A'}</td>
+                  <td>{entry['overlap_score'] or 'N/A'}</td>
+                  <td>{entry['penalized_score'] or 'N/A'}</td>
+                  <td>{entry['mibig_accession'] or 'N/A'}</td>
                   <td><div class="motif-ids">{motif_ids_str}</div></td>
                 </tr>"""))
         
