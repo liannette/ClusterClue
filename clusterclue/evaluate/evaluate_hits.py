@@ -93,29 +93,38 @@ def calculate_jaccard(annotated_genes: set, hit_genes: set) -> float:
     return len(overlapping_genes) / len(union_genes)
 
 
-def calculate_penalized_f1(
-    f1: float, n_overlapping_hits: int, alpha: float
-) -> float:
-    """Calculate the penalized F1 score based on the number of hits with Jaccard index above a threshold.
-
-    The term (n_overlapping_hits−1) ensures no penalty when only one predicted subcluster overlaps 
-    (ideal case), with penalties scaling for n_overlapping_hits>1.
-    
-
-    Args:
-        f1 (float): The F1 score to be penalized.
-        n_overlapping_hits (int): Number of of hits with Jaccard index above the threshold.
-        alpha (float): Controls the penalty strength, higher values (e.g. 0.5) 
-            penalize more than lower values (e.g. 0.1).
-
-    Returns:
-        float: The penalized F1 score.
+def penalize_score(
+        score: float, 
+        n_overlap: int, 
+        alpha: float = 0.3, 
+        beta: float = 2.0
+    ) -> float:
     """
-    penalty = 1 / (1 + alpha * (n_overlapping_hits - 1))
-    return f1 * penalty
+    Penalizes a score based on the number of overlapping hits.
+
+    Uses with tunable parameters alpha and beta for penalty strength and growth rate.
+    
+    Args:
+        score (float): The original score to be penalized.
+        n_overlap (int): The number of overlapping hits (n).
+        alpha (float): Controls the penalty strength, higher values (e.g. 0.5) 
+            penalize more than lower values (e.g. 0.1). Default is 0.3.
+        beta (float): Controls the growth rate of the penalty with n_overlap. 
+            beta=1 is linear (original), beta=2 is quadratic, higher = more aggressive.
+    
+    Returns:
+        float: The penalized score.
+    """
+    penalty = 1 / (1 + alpha * (n_overlap - 1)**beta)
+    return score * penalty
 
 
-def assign_best_hit(row: pd.Series, hits: Dict[str, List[MotifHit | PrestoHit]], alpha: float = 0.25) -> dict:
+def assign_best_hit(
+        row: pd.Series, 
+        hits: Dict[str, List[MotifHit | PrestoHit]], 
+        alpha: float = 0.25, 
+        beta: float = 2.0
+    ) -> dict:
     """Find the best hit for a given row of annotated subclusters.
     alpha is set to 0.25 based on manual evaluation of motif sets, 
     but can be adjusted based on the desired penalty strength. 
@@ -153,10 +162,13 @@ def assign_best_hit(row: pd.Series, hits: Dict[str, List[MotifHit | PrestoHit]],
 
     if overlapping_hits:
         best_hit = max(overlapping_hits, key=lambda x: x["overlap_score"])
-        n_overlapping_hits = len(overlapping_hits)
-        penalized_f1 = calculate_penalized_f1(best_hit["overlap_score"], n_overlapping_hits, alpha)
-        best_hit["n_overlapping_hits"] = n_overlapping_hits
-        best_hit["redundancy_penalised_overlap_score"] = penalized_f1
+        best_hit["n_overlapping_hits"] = len(overlapping_hits)
+        best_hit["penalized_score"] = penalize_score(
+            best_hit["overlap_score"], 
+            len(overlapping_hits), 
+            alpha=alpha, 
+            beta=beta
+            )
     else:
         best_hit = {
             "subcluster_id": row["subcluster_id"],
@@ -169,30 +181,11 @@ def assign_best_hit(row: pd.Series, hits: Dict[str, List[MotifHit | PrestoHit]],
             "precision": 0.0,
             "overlap_score": 0.0,
             "n_overlapping_hits": 0,
-            "redundancy_penalised_overlap_score": 0.0,
+            "penalized_score": 0.0,
+
         }
 
     return best_hit
-
-
-def get_best_hits(
-    ref_subclusters: pd.DataFrame,
-    hits: Dict[str, List[MotifHit | PrestoHit]],
-    alpha: float = 0.25,
-) -> pd.DataFrame:
-    best_hits = pd.DataFrame(
-        ref_subclusters.apply(lambda row: assign_best_hit(row, hits, alpha=alpha), axis=1).tolist()
-    )
-    return best_hits
-
-
-def calculate_evaluation(ref_subclusters_with_hits: pd.DataFrame) -> tuple:
-    scores = ref_subclusters_with_hits[["overlap_score", "redundancy_penalised_overlap_score"]]
-    mean_scores = scores.mean().to_dict()
-
-    m_os = round(mean_scores["overlap_score"], 3)
-    m_rpos = round(mean_scores["redundancy_penalised_overlap_score"], 3)
-    return m_os, m_rpos
 
 
 def write_motif_evaluation(ref_subclusters: pd.DataFrame, best_hits: pd.DataFrame, output_filepath: Path) -> None:
@@ -201,9 +194,9 @@ def write_motif_evaluation(ref_subclusters: pd.DataFrame, best_hits: pd.DataFram
     eval_df["tokenized_genes"] = eval_df["tokenized_genes"].apply(lambda x: ";".join(x))
     eval_df["motif_hit_genes"] = eval_df["motif_hit_genes"].apply(lambda x: ";".join(sorted(x)))
     eval_df["overlapping_genes"] = eval_df["overlapping_genes"].apply(lambda x: ";".join(sorted(x)))
-    eval_df["jaccard"] = eval_df["jaccard"].round(3)
-    eval_df["recall"] = eval_df["recall"].round(3)
-    eval_df["precision"] = eval_df["precision"].round(3)
-    eval_df["overlap_score"] = eval_df["overlap_score"].round(3)
-    eval_df["redundancy_penalised_overlap_score"] = eval_df["redundancy_penalised_overlap_score"].round(3)
+    eval_df["jaccard"] = eval_df["jaccard"].round(4)
+    eval_df["recall"] = eval_df["recall"].round(4)
+    eval_df["precision"] = eval_df["precision"].round(4)
+    eval_df["overlap_score"] = eval_df["overlap_score"].round(4)
+    eval_df["penalized_score"] = eval_df["penalized_score"].round(4)
     eval_df.to_csv(output_filepath, sep="\t", index=False)
