@@ -1,4 +1,5 @@
 import logging
+import re
 import pandas as pd
 from pathlib import Path
 from clusterclue.gwms.detect_motifs import detect_motifs, write_motif_hits, parse_clusters_file, parse_motifs_file
@@ -67,11 +68,17 @@ def select_best_motif_set(
             f"{round(mean_penalized_score, 4)}"
         )
         
+        # extract hyperparameters from motif_set_id using regex
+        keys = ['k', 'mm', 'mgc', 'ct', 'mgp']
+        pattern = r'_k(\d+)_mm(\d+)_mgc(\d+)_ct(\d+)_mgp(\d+)'
+        hyperparameters = {k: int(v) for k, v in zip(keys, re.search(pattern, motif_set_id).groups())}
+
         evaluation_scores.append({
             "best_hits": best_hits,
             "mean_overlap_score": mean_overlap_score,
             "mean_penalized_score": mean_penalized_score,
             "motif_set_id": motif_set_id,
+            "hyperparameters": hyperparameters,
             "n_motifs": len(motif_gwms),
             "motif_file": motifs_filepath,
             "motif_hits": motif_hits,
@@ -79,7 +86,7 @@ def select_best_motif_set(
 
     # Save final scores to a tsv file
     out_file_path = output_dirpath / "evaluation_scores.tsv"
-    evaluation_scores_df = pd.DataFrame(evaluation_scores)[["motif_set_id", "mean_overlap_score", "mean_penalized_score"]]
+    evaluation_scores_df = pd.DataFrame(evaluation_scores)[["motif_set_id", "n_motifs", "mean_overlap_score", "mean_penalized_score"]]
     # round
     evaluation_scores_df["mean_overlap_score"] = evaluation_scores_df["mean_overlap_score"].round(4)
     evaluation_scores_df["mean_penalized_score"] = evaluation_scores_df["mean_penalized_score"].round(4)
@@ -87,7 +94,18 @@ def select_best_motif_set(
     logger.info(f"Wrote all motif set evaluation scores to {out_file_path}")
 
     # Select the best motif set based on penalized F1-score
-    best_motif_set = max(evaluation_scores, key=lambda x: x["mean_penalized_score"])
+    best_motif_set = max(evaluation_scores, key=lambda x: x["mean_penalized_score"], )
+    best_motif_set = max(
+        evaluation_scores,
+        key=lambda x: (
+            x["mean_penalized_score"],
+            x["hyperparameters"]["mgc"],
+            x["hyperparameters"]["ct"],
+            x["hyperparameters"]["mgp"],
+            x["hyperparameters"]["mm"],
+            x["n_motifs"],
+        ),
+    )
     logger.info(
         f"Best motif set with best penalized score: {best_motif_set['motif_set_id']} ({best_motif_set['n_motifs']} motifs) "
         f"Mean Overlap Score: {round(best_motif_set['mean_overlap_score'], 4)}, "
