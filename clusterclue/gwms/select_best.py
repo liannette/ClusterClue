@@ -71,7 +71,15 @@ def select_best_motif_set(
         # extract hyperparameters from motif_set_id using regex
         keys = ['mm', 'mgc', 'ct', 'mgp']
         pattern = r'_mm(\d+)_mgc(\d+)_ct(\d+)_mgp(\d+)'
-        hyperparameters = {k: int(v) for k, v in zip(keys, re.search(pattern, motif_set_id).groups())}
+        match = re.search(pattern, motif_set_id)
+
+        if match:
+            hyperparameters = {k: int(v) for k, v in zip(keys, re.search(pattern, motif_set_id).groups())}
+        else:
+            # Handle cases where motif_set_id doesn't match the expected pattern
+            hyperparameters = {k: 0 for k in keys}  # or None, or skip this entry
+            logger.warning(f"Motif set ID '{motif_set_id}' doesn't match hyperparameter pattern.")
+
 
         evaluation_scores.append({
             "best_hits": best_hits,

@@ -257,14 +257,13 @@ def get_commands():
     )
     # GWMs
     build.add_argument(
-        "--n_comp",
-        dest="n_comp_list",
-        nargs="+",
-        type=int,
-        default=[100,],
-        metavar="<int>",
-        help="Specify one or more integers to define the number of components "
-        "for dimensionality reduction when generating the motifs (default: 100).",
+        "--target_variance",
+        dest="target_variance_explained",
+        default=0.5,
+        type=float,
+        metavar="<float>",
+        help="The target variance explained to determine the number of dimensions "
+        "to reduce to with SVD before clustering subcluster modules. (default: 0.5).",
     )
     build.add_argument(
         "--ref_sc",
@@ -283,8 +282,8 @@ def get_commands():
         "Used to select best hyperparameters for motif generation.",
     )
     build.add_argument(
-        "--visualise_evaluation",
-        dest="visualise_evaluation",
+        "--visualize_evaluation",
+        dest="visualize_evaluation",
         action="store_true",
         default=False,
         help="Visualize the detected motifs in the reference clusters in html reports.",

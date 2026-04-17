@@ -1,9 +1,11 @@
 from pathlib import Path
 import logging
+import pandas as pd
+import json
 from dataclasses import dataclass
 from typing import Dict, List
 from clusterclue.evaluate.evaluate_hits import read_reference_subclusters_and_tokenize_genes
-from clusterclue.evaluate.evaluate_hits import calculate_evaluation, get_best_hits, write_motif_evaluation
+from clusterclue.evaluate.evaluate_hits import assign_best_hit, write_motif_evaluation
 from clusterclue.presto_stat.orchestrator import StatOrchestrator
 from clusterclue.presto_top.orchestrator import TopOrchestrator
 
@@ -93,12 +95,54 @@ def load_presto_stat_subclusters(
     return detected_subclusters
 
 
+def get_best_hits(
+    ref_subclusters: pd.DataFrame, 
+    hits: Dict[str, List[PrestoHit]], 
+    alpha: float = 0.25, 
+    beta: float = 2.0
+) -> pd.DataFrame:
+    """
+    Apply assign_best_hit to each row of reference subclusters and return as DataFrame.
+    
+    Args:
+        ref_subclusters: DataFrame with annotated subclusters
+        hits: Dictionary mapping BGC IDs to lists of PrestoHit objects
+        alpha: Penalty strength parameter (default 0.25)
+        beta: Penalty growth rate parameter (default 2.0)
+    
+    Returns:
+        DataFrame with best hits for each reference subcluster
+    """
+    best_hits = ref_subclusters.apply(
+        lambda row: assign_best_hit(row, hits, alpha=alpha, beta=beta), 
+        axis=1
+    )
+    return pd.DataFrame(best_hits.tolist())
+
+
+def calculate_evaluation(ref_subclusters_with_hits: pd.DataFrame) -> tuple:
+    """Calculate mean overlap score and mean penalized overlap score."""
+    scores = ref_subclusters_with_hits[["overlap_score", "penalized_score"]]
+    mean_scores = scores.mean().to_dict()
+
+    m_os = round(mean_scores["overlap_score"], 3)
+    m_ps = round(mean_scores["penalized_score"], 3)
+    return m_os, m_ps
+
+
 def evaluate_presto_stat(
     reference_subclusters_filepath: Path,
     reference_clusters_filepath: Path,
     stat_modules: Path,
-    output_dirpath: Path):
-    """Evaluate PRESTO-STAT detected subclusters against a reference set of annotated subclusters."""
+    output_dirpath: Path,
+    overlap_penalty_alpha: float = 0.25,
+    overlap_penalty_beta: float = 2.0
+) -> dict:
+    """Evaluate PRESTO-STAT detected subclusters against a reference set of annotated subclusters.
+    
+    Returns:
+        dict: Results dictionary with evaluation metrics and file paths
+    """
 
     # run presto stat on reference clusters
     StatOrchestrator().run(
@@ -112,29 +156,46 @@ def evaluate_presto_stat(
         verbose=False
         )
     
-    # load detected subclusters
-    detected_subclusters_filepath = Path(output_dirpath) / "detected_stat_modules.txt"
-    hits = load_presto_stat_subclusters(detected_subclusters_filepath)
-
     # load reference subclusters
     domain_hits_filepath = Path(reference_clusters_filepath).parent / "all_domain_hits.txt"
     ref_subclusters = read_reference_subclusters_and_tokenize_genes(
         reference_subclusters_filepath, domain_hits_filepath
     )
 
-    # evaluate
-    best_hits = get_best_hits(ref_subclusters, hits)
-    avg_overlap_score, avg_penalized_overlap_score = calculate_evaluation(best_hits)
-    
-    logger.info(f"PRESTO-STAT Mean Overlap Score: {avg_overlap_score}, Mean Redundancy Penalized Overlap Score: {avg_penalized_overlap_score}")
+    # load detected subclusters
+    detected_subclusters_filepath = Path(output_dirpath) / "detected_stat_modules.txt"
+    hits = load_presto_stat_subclusters(detected_subclusters_filepath)
 
-    output_filepath = Path(output_dirpath) / "ref_subclusters_best_hits.tsv"
-    write_motif_evaluation(
-        ref_subclusters,
-        best_hits,
-        output_filepath,
-    )
-    logger.info(f"PRESTO-STAT best hits to reference subclusters results written to: {output_filepath}")
+    # evaluate
+    eval_df = get_best_hits(ref_subclusters, hits, alpha=overlap_penalty_alpha, beta=overlap_penalty_beta)
+    
+    # Save to csv
+    eval_best_hits_filepath = Path(output_dirpath) / "best_hits_PRESTO-STAT.tsv"
+    eval_df.to_csv(eval_best_hits_filepath, sep="\t", index=False)
+
+    # merge for final evaluation
+    ref_subclusters_with_hits = ref_subclusters.merge(eval_df, on="subcluster_id")
+    avg_overlap_score, avg_penalized_overlap_score = calculate_evaluation(ref_subclusters_with_hits)
+    
+    logger.info(f"PRESTO-STAT Mean Overlap Score: {avg_overlap_score}, Mean Penalized Overlap Score: {avg_penalized_overlap_score}")
+
+    # Calculate statistics
+    n_detected_subclusters = sum(len(hit_list) for hit_list in hits.values())
+    n_bgcs_with_hits = len(hits)
+    
+    # Store results
+    results = {'PRESTO-STAT': {
+        'n_detected_subclusters': int(n_detected_subclusters),
+        'n_bgcs_with_hits': int(n_bgcs_with_hits),
+        'mean_overlap_score': float(avg_overlap_score),
+        'mean_penalized_score': float(avg_penalized_overlap_score),
+        'alpha': float(overlap_penalty_alpha),
+        'beta': float(overlap_penalty_beta),
+        'eval_hits_filepath': str(detected_subclusters_filepath),
+        'eval_best_hits_filepath': str(eval_best_hits_filepath),
+    }}
+
+    return results
 
 
 def evaluate_presto_top(
@@ -142,9 +203,15 @@ def evaluate_presto_top(
     reference_clusters_filepath: Path,
     top_model_file_path: Path,
     number_of_topics: int,
-    output_dirpath: Path
-    ):
-    """Evaluate PRESTO-TOP detected subclusters against a reference set of annotated subclusters."""
+    output_dirpath: Path,
+    overlap_penalty_alpha: float = 0.25,
+    overlap_penalty_beta: float = 2.0
+) -> dict:
+    """Evaluate PRESTO-TOP detected subclusters against a reference set of annotated subclusters.
+    
+    Returns:
+        dict: Results dictionary with evaluation metrics and file paths
+    """
 
     # run presto top on reference clusters
     TopOrchestrator().run(
@@ -166,15 +233,32 @@ def evaluate_presto_top(
     hits = load_presto_top_subclusters(detected_subclusters_filepath)
 
     # evaluate
-    best_hits = get_best_hits(ref_subclusters, hits)
-    avg_overlap_score, avg_penalized_overlap_score = calculate_evaluation(best_hits)
+    eval_df = get_best_hits(ref_subclusters, hits, alpha=overlap_penalty_alpha, beta=overlap_penalty_beta)
     
-    logger.info(f"PRESTO-TOP Mean Overlap Score: {avg_overlap_score}, Mean Redundancy Penalized Overlap Score: {avg_penalized_overlap_score}")
+    # Save to csv
+    eval_best_hits_filepath = Path(output_dirpath) / "best_hits_PRESTO-TOP.tsv"
+    eval_df.to_csv(eval_best_hits_filepath, sep="\t", index=False)
 
-    output_filepath = Path(output_dirpath) / "ref_subclusters_best_hits.tsv"
-    write_motif_evaluation(
-        ref_subclusters,
-        best_hits,
-        output_filepath,
-    )   
-    logger.info(f"PRESTO-TOP best hits to reference subclusters results written to: {output_filepath}")
+    # merge for final evaluation
+    ref_subclusters_with_hits = ref_subclusters.merge(eval_df, on="subcluster_id")
+    avg_overlap_score, avg_penalized_overlap_score = calculate_evaluation(ref_subclusters_with_hits)
+    
+    logger.info(f"PRESTO-TOP Mean Overlap Score: {avg_overlap_score}, Mean Penalized Overlap Score: {avg_penalized_overlap_score}")
+
+    # Calculate statistics
+    n_detected_subclusters = sum(len(hit_list) for hit_list in hits.values())
+    n_bgcs_with_hits = len(hits)
+    
+    # Store results
+    results = {'PRESTO-TOP': {
+        'n_detected_subclusters': int(n_detected_subclusters),
+        'n_bgcs_with_hits': int(n_bgcs_with_hits),
+        'mean_overlap_score': float(avg_overlap_score),
+        'mean_penalized_score': float(avg_penalized_overlap_score),
+        'alpha': float(overlap_penalty_alpha),
+        'beta': float(overlap_penalty_beta),
+        'eval_hits_filepath': str(detected_subclusters_filepath),
+        'eval_best_hits_filepath': str(eval_best_hits_filepath),
+    }}
+
+    return results

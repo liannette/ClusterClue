@@ -75,8 +75,7 @@ def run_lda(domlist, no_below, no_above, num_topics, cores, outfolder,
     else:
         logger.info("Loaded existing dict_file with words")
         dict_lda = Dictionary.load(str(dict_filepath))
-    logger.info('Constructing LDA model with {} BGCs and:'.format(len(domlist)),
-          dict_lda)
+    logger.info(f'Constructing LDA model with {len(domlist)} BGCs and {len(dict_lda)} unique tokens')
     
     corpus_bow = [dict_lda.doc2bow(doms) for doms in domlist]
     corpus_filepath = outfolder / f'{model_filename}mm'

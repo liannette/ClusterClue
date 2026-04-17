@@ -42,24 +42,28 @@ def read_top_subcluster_matches(input_filepath):
     return module_matches
 
 
-def combine_presto_matches(stat_matches_filepath, top_matches_filepath, output_filepath):
+def combine_presto_matches(
+    stat_matches_filepath, 
+    top_matches_filepath, 
+    output_filepath=None
+    ):
     logger.info(
         f"Combining presto subcluster matches from {stat_matches_filepath} "
         f"and {top_matches_filepath}"
     )
     # Load clusterclue subcluster predictions
     stat_matches = read_stat_subcluster_matches(stat_matches_filepath)
+    logger.info(f"Read {len(stat_matches)} predicted subclusters from STAT method")
     top_matches = read_top_subcluster_matches(top_matches_filepath)
+    logger.info(f"Read {len(top_matches)} predicted subclusters from TOP method")
     combined_matches = stat_matches | top_matches
+    logger.info(f"Combined subcluster predictions: {len(combined_matches)}")
 
     # Write combined matches to file
-    with open(output_filepath, "w") as outfile:
-        for bgc_id, mod in sorted(combined_matches):
-            outfile.write(f"{bgc_id}\t{','.join(mod)}\n")
-    
-    logger.info(
-        f"Wrote {len(combined_matches)} ({len(stat_matches)} STAT + "
-        f"{len(top_matches)} TOP) presto subcluster predictions to {output_filepath}"
-        )
+    if output_filepath:
+        with open(output_filepath, "w") as outfile:
+            for bgc_id, mod in sorted(combined_matches):
+                outfile.write(f"{bgc_id}\t{','.join(mod)}\n")
+        logger.info(f"Wrote combined unique subcluster modules to {output_filepath}")
 
     return combined_matches

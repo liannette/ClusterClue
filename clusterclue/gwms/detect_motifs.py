@@ -77,7 +77,7 @@ def detect_motifs(clusters, motifs):
             if score < motif.threshold:
                 continue
 
-            hit_genes = set(motif.tokenized_genes) & bgc_genes
+            hit_genes = set(motif.tokenized_genes) & set(bgc_genes)
             if len(hit_genes) < 2:
                 continue
 
@@ -91,7 +91,7 @@ def detect_motifs(clusters, motifs):
 def detect_gwms_in_clusters(
     clusters_filepath, 
     motifs_filepath, 
-    output_filepath,
+    output_filepath=None,
     ):
     clusters = parse_clusters_file(clusters_filepath)
     logger.info(f"Parsed {len(clusters)} clusters from {clusters_filepath}")
@@ -100,9 +100,12 @@ def detect_gwms_in_clusters(
     motif_hits = detect_motifs(clusters, motifs)
     logger.info(f"Detected {sum(len(hits) for hits in motif_hits.values())} motif hits across {len(motif_hits)} clusters")
 
-    write_motif_hits(motif_hits, motifs, output_filepath)
-    logger.info(f"Wrote motif hits to {output_filepath}")
+    if output_filepath is not None:
+        write_motif_hits(motif_hits, motifs, output_filepath)
+        logger.info(f"Wrote motif hits to {output_filepath}")
 
+    return motif_hits
+    
 
 def visualise_gwm_hits(
     motif_gwms_filepath: str | Path,

@@ -1,4 +1,5 @@
 import logging
+import json
 from pathlib import Path
 from clusterclue.clusters.tokenize.orchestrator import TokenizeOrchestrator
 from clusterclue.clusters.orchestrator import PreprocessOrchestrator
@@ -17,7 +18,7 @@ def create_new_motifs(
     # the user only wants to detect existing motifs
     from clusterclue.presto_stat.orchestrator import StatOrchestrator
     from clusterclue.presto_top.orchestrator import TopOrchestrator
-    from clusterclue.gwms.create_motifs import generate_subcluster_motifs
+    from clusterclue.gwms.create_motifs import create_and_evaluate_motif_gwms
     from clusterclue.gwms.select_best import select_best_motif_set
     from clusterclue.evaluate.presto_predictions import evaluate_presto_stat, evaluate_presto_top
 
@@ -27,7 +28,7 @@ def create_new_motifs(
     # Step 1: Preprocessing clusters
     logger.info("=== Preprocessing clusters ===")
     preprocess_dirpath = out_dirpath / "preprocess"
-    clusters_file_path = PreprocessOrchestrator().run(
+    clusters_filepath = PreprocessOrchestrator().run(
         preprocess_dirpath,
         cmd.gbks_dir_path,
         cmd.hmm_file_path,
@@ -42,48 +43,8 @@ def create_new_motifs(
         cmd.verbose,
         log_queue,
     )
-
-
-    # Step 2: Statistical subcluster detection (PRESTO-STAT)
-    stat_dirpath = out_dirpath / "presto_stat_subclusters"
-    if cmd.run_stat:
-        logger.info("=== PRESTO-STAT: statistical subcluster detection ===")
-        StatOrchestrator().run(
-            stat_dirpath,
-            clusters_file_path,
-            cmd.stat_modules_file_path,
-            cmd.stat_pval_cutoff,
-            cmd.stat_n_families_range,
-            cmd.min_genes_per_bgc,
-            cmd.cores,
-            cmd.verbose,
-        )
-
-    # Step 3: Topic modelling for subcluster motif detection (PRESTO-TOP)
-    top_dirpath = out_dirpath / "presto_top_subclusters"
-    if cmd.run_top:
-        logger.info("=== PRESTO-TOP: subcluster detection using topic modelling ===")
-        TopOrchestrator().run(
-            top_dirpath,
-            clusters_file_path,
-            cmd.top_model_file_path,
-            cmd.top_n_topics, 
-            cmd.top_amplify, 
-            cmd.top_iterations,
-            cmd.top_chunksize, 
-            cmd.top_update, 
-            cmd.top_visualise,
-            cmd.top_alpha,
-            cmd.top_beta,
-            cmd.top_plot,
-            cmd.top_feat_num,
-            cmd.top_min_feat_score,
-            cmd.cores,
-        )
-
-    # PRESTO evaluation
-    logger.info("=== Evaluating PRESTO subcluster detections against reference subclusters ===")
     
+    # Preprocess clusters from evaluation set
     evaluation_dirpath = out_dirpath / "evaluation" 
     evaluation_dirpath.mkdir(parents=True, exist_ok=True)
     
@@ -109,27 +70,76 @@ def create_new_motifs(
             verbose=cmd.verbose,
             log_queue=log_queue,
         )
-    stat_evaluate_dirpath = evaluation_dirpath / "presto_stat_subclusters"
-    if stat_evaluate_dirpath.is_dir() and any(stat_evaluate_dirpath.iterdir()):
-        logger.info(f"Skipping PRESTO-STAT evaluation step, because the directory already exists and is not empty: {stat_evaluate_dirpath}")
+
+
+    # Step 2: Statistical subcluster detection (PRESTO-STAT)
+    stat_dirpath = out_dirpath / "presto_stat_subclusters"
+    if cmd.run_stat:
+        logger.info("=== PRESTO-STAT: statistical subcluster detection ===")
+        StatOrchestrator().run(
+            stat_dirpath,
+            clusters_filepath,
+            cmd.stat_modules_file_path,
+            cmd.stat_pval_cutoff,
+            cmd.stat_n_families_range,
+            cmd.min_genes_per_bgc,
+            cmd.cores,
+            cmd.verbose,
+        )
+
+    # Step 3: Topic modelling for subcluster motif detection (PRESTO-TOP)
+    top_dirpath = out_dirpath / "presto_top_subclusters"
+    if cmd.run_top:
+        logger.info("=== PRESTO-TOP: subcluster detection using topic modelling ===")
+        TopOrchestrator().run(
+            top_dirpath,
+            clusters_filepath,
+            cmd.top_model_file_path,
+            cmd.top_n_topics, 
+            cmd.top_amplify, 
+            cmd.top_iterations,
+            cmd.top_chunksize, 
+            cmd.top_update, 
+            cmd.top_visualise,
+            cmd.top_alpha,
+            cmd.top_beta,
+            cmd.top_plot,
+            cmd.top_feat_num,
+            cmd.top_min_feat_score,
+            cmd.cores,
+        )
+
+    # PRESTO evaluation
+    logger.info("=== Evaluating PRESTO subcluster detections against reference subclusters ===")
+
+    results_filepath = evaluation_dirpath / "results_presto.json"
+    if results_filepath.is_file():
+        logger.info(f"Skipping PRESTO evaluation, because the file already exists {results_filepath}")
     else:
-        evaluate_presto_stat(
+        results = {}
+
+        stat_results = evaluate_presto_stat(
             reference_subclusters_filepath=cmd.reference_subclusters_filepath,
             reference_clusters_filepath=ref_clusters_filepath,
             stat_modules=stat_dirpath / "stat_modules.txt",
             output_dirpath=evaluation_dirpath / "presto_stat_subclusters",
         )
-    top_evaluate_dirpath = evaluation_dirpath / "presto_top_subclusters"
-    if top_evaluate_dirpath.is_dir() and any(top_evaluate_dirpath.iterdir()):
-        logger.info(f"Skipping PRESTO-TOP evaluation step, because the directory already exists and is not empty: {top_evaluate_dirpath}")
-    else:
-        evaluate_presto_top(
+        results.update(stat_results)
+
+        top_results = evaluate_presto_top(
             reference_subclusters_filepath=cmd.reference_subclusters_filepath,
             reference_clusters_filepath=ref_clusters_filepath,
             top_model_file_path=top_dirpath / "lda_model",
             number_of_topics=cmd.top_n_topics,
             output_dirpath=evaluation_dirpath / "presto_top_subclusters",
         )
+        results.update(top_results)
+
+        # Save combined results as JSON
+        results_filepath = evaluation_dirpath / "results_presto.json"
+        with open(results_filepath, 'w') as f:
+            json.dump(results, f, indent=2)
+        logger.info(f"PRESTO results saved to: {results_filepath}")
 
 
     # Step 4: Create GWMs
@@ -141,30 +151,40 @@ def create_new_motifs(
         motifs_dirpath.mkdir(parents=True, exist_ok=True)
         stat_matches_filepath = stat_dirpath / "detected_stat_modules.txt"
         top_matches_filepath = top_dirpath / "matches_per_topic_filtered.txt"
-        gwms_dirpath = generate_subcluster_motifs(
-            clusters_file_path,
-            stat_matches_filepath,
-            top_matches_filepath,
-            motifs_dirpath,
-            cmd.n_comp_list,
-            cmd.cores
+
+        best_result = create_and_evaluate_motif_gwms(
+            stat_matches_filepath=stat_matches_filepath,
+            top_matches_filepath=top_matches_filepath,
+            clusters_filepath=clusters_filepath,
+            annotated_subclusters_filepath=cmd.reference_subclusters_filepath,
+            reference_clusters_filepath=ref_clusters_filepath,
+            overlap_penalty_alpha=0.5,
+            overlap_penalty_beta=2.0,
+            out_dirpath=motifs_dirpath,
+            n_jobs=cmd.cores,
         )
 
-        select_best_motif_set(
-            output_dirpath=motifs_dirpath,
-            gwms_dirpath=gwms_dirpath,
-            reference_subclusters_filepath=cmd.reference_subclusters_filepath,
-            clusters_filepath=ref_clusters_filepath,
-        )
-
-    # visualize the best motif set
-    if cmd.visualise_evaluation:
+    if cmd.visualize_evaluation:
         from clusterclue.evaluate.visualize import visualize_evaluation_results
+
+        # Get the gwm with the best penalized score
+        evaluation_results_filepath = motifs_dirpath / "results_final.json"
+        with open(evaluation_results_filepath, 'r') as f:
+            all_results = json.load(f)
+        best_name, best_result = max(all_results.items(), key=lambda x: x[1].get('mean_penalized_score', 0))
+
+        domain_hits_filepath = Path(ref_clusters_filepath).parent / "all_domain_hits.txt"
+        out_html_dirpath = motifs_dirpath / "evaluation_hits_html" / best_name
+
         visualize_evaluation_results(
-            motifs_dirpath,
-            ref_clusters_filepath,
-            Path(cmd.reference_gbks_dirpath),
-            Path(cmd.compound_smiles_filepath),
+            annotated_subclusters_filepath=cmd.reference_subclusters_filepath,
+            evaluation_best_hits_filepath=best_result['eval_best_hits_filepath'],
+            motif_gwms_filepath=best_result['gwms_filepath'],
+            ref_gbks_dirpath=Path(cmd.reference_gbks_dirpath),
+            domain_hits_filepath=domain_hits_filepath,
+            motif_hits_filepath=best_result['eval_hits_filepath'],
+            mibig_compounds_filepath=Path(cmd.compound_smiles_filepath),
+            out_html_dirpath=out_html_dirpath
         )
 
 
@@ -181,7 +201,7 @@ def detect_existing_motifs(
     logger.info("=== Preprocessing input biosynthetic gene clusters ===")
     preprocess_dirpath = out_dirpath / "preprocess"
 
-    clusters_file_path = PreprocessOrchestrator().run(
+    clusters_filepath = PreprocessOrchestrator().run(
         out_dir_path=preprocess_dirpath,
         gbks_dir_path=cmd.gbk_dir_path,
         hmm_file_path=cmd.hmm_file_path,
@@ -201,7 +221,7 @@ def detect_existing_motifs(
     logger.info("=== Detecting existing subcluster motifs ===")
     hits_filepath = out_dirpath / "detected_motifs.tsv"
     detect_gwms_in_clusters(
-        clusters_filepath=clusters_file_path,
+        clusters_filepath=clusters_filepath,
         motifs_filepath=cmd.gwms_filepath,
         output_filepath=hits_filepath,
     )

@@ -4,6 +4,13 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+def get_core_genes(motif, core_threshold):
+    """Returns a list of core genes for a motif based on the core_threshold"""
+    return [
+        gene for gene, prob in zip(motif.tokenized_genes, motif.probabilities) 
+        if prob >= core_threshold
+        ]
+
 
 def passes_min_matches(n_matches, min_matches):
     return True if int(n_matches) >= int(min_matches) else False
@@ -64,12 +71,13 @@ def build_motif_gwms(
     for motif in subcluster_motifs.values():
         # remove probabilities below the min probability threshold
         motif._filter_low_probabilities(min_gene_prob)
+        motif.core_genes = get_core_genes(motif, core_threshold)
 
         # check if motif passes filter
         if not passes_min_matches(motif.n_matches, min_matches):
             n_low_matches += 1
             continue
-        if not passes_min_core_genes(motif.probabilities, min_core_genes, core_threshold):
+        if len(motif.core_genes) < min_core_genes:
             n_low_core_genes += 1
             continue
         if len(motif.tokenized_genes) < 2:

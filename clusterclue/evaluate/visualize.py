@@ -2,6 +2,7 @@ from pathlib import Path
 import logging
 import csv
 import subsketch as subsk
+import pandas as pd
 from subsketch.reports import generate_html_for_annotated_subcluster
 from subsketch.io import read_compounds
 from subsketch.loaders import load_mibig_bgc
@@ -10,33 +11,19 @@ import textwrap
 logger = logging.getLogger(__name__)
 
 def visualize_evaluation_results(
-    motifs_dirpath, 
-    ref_clusters_filepath,
+    annotated_subclusters_filepath,
+    evaluation_best_hits_filepath,
+    motif_gwms_filepath,
     ref_gbks_dirpath,
-    mibig_compounds_filepath, 
+    domain_hits_filepath,
+    motif_hits_filepath,
+    mibig_compounds_filepath,
+    out_html_dirpath
     ) -> None:
-    motifs_dirpath = Path(motifs_dirpath)
-    evaluation_best_hits_filepath = motifs_dirpath /"ref_subclusters_best_hits.tsv"
-    motif_gwms_filepath = motifs_dirpath / "motif_gwms.txt"
-    motif_hits_filepath = motifs_dirpath / "motif_hits.tsv"
-    domain_hits_filepath = Path(ref_clusters_filepath).parent / "all_domain_hits.txt"
-
-    session = subsk.SubSketchSession(
-        motifs_file=motif_gwms_filepath,
-        genbank_dir=ref_gbks_dirpath,
-        domain_hits_file=domain_hits_filepath,
-        motif_hits_file=motif_hits_filepath,
-        compounds_file=mibig_compounds_filepath,
-    )
-    session.load()
-
-    mibig_compounds = read_compounds(mibig_compounds_filepath)
-
-    out_html_dirpath = motifs_dirpath / "ref_subclusters_hits"
-    out_html_dirpath.mkdir(exist_ok=True, parents=True)
 
     subclusters = dict()
-    with open(evaluation_best_hits_filepath, "r") as infile:
+
+    with open(annotated_subclusters_filepath, "r") as infile:
         reader = csv.DictReader(infile, delimiter="\t")
         for row in reader:
             subclusters[row["subcluster_id"]] = {
@@ -51,15 +38,35 @@ def visualize_evaluation_results(
                 "pathway_quality": row["pathway quality"],
                 "pubmed_id": [],
                 "orig_seq": "N/A",
+            }
+
+    with open(evaluation_best_hits_filepath, "r") as infile:
+        reader = csv.DictReader(infile, delimiter="\t")
+        for row in reader:
+            subclusters[row["subcluster_id"]].update({
                 "best_motif_hit": row["motif_id"],
                 "overlap_score": row["overlap_score"],
                 "penalized_score": row["penalized_score"],
-            }
+            })
+
+    # out_html_dirpath = motifs_dirpath / "ref_subclusters_hits"
+    out_html_dirpath.mkdir(exist_ok=True, parents=True)
+
+    session = subsk.SubSketchSession(
+        motifs_file=motif_gwms_filepath,
+        genbank_dir=ref_gbks_dirpath,
+        domain_hits_file=domain_hits_filepath,
+        motif_hits_file=motif_hits_filepath,
+        compounds_file=mibig_compounds_filepath,
+    )
+    session.load()
+
+    mibig_compounds = read_compounds(mibig_compounds_filepath)
 
     index_entries = []
 
-    for subcluster in subclusters:
-        html_filename = f"subcluster_{subcluster['id']}_hits.html"
+    for subcluster_id, subcluster in subclusters.items():
+        html_filename = f"subcluster_{subcluster_id}_hits.html"
         html_filepath = out_html_dirpath / html_filename
 
         bgc_id = subcluster["bgc_id"]
@@ -94,9 +101,9 @@ def visualize_evaluation_results(
                 "subcluster_id": subcluster["id"],
                 "substructure_name": subcluster["substructure_name"],
                 "substructure_class": subcluster["substructure_class"],
-                "best_motif_hit": subcluster["best_motif_hit"],
-                "overlap_score": subcluster["overlap_score"],
-                "penalized_score": subcluster["penalized_score"],
+                "best_motif_hit": subcluster.get("best_motif_hit", "N/A"),
+                "overlap_score": subcluster.get("overlap_score", "N/A"),
+                "penalized_score": subcluster.get("penalized_score", "N/A"),
                 "bgc_id": bgc_id,
                 "motif_ids": motif_ids
             }
@@ -235,13 +242,12 @@ def write_index_html(index_html_path, index_entries):
             f.write(textwrap.dedent(f"""\
                 <tr>
                   <td><a href="{entry['href']}" class="sc-link">{entry['subcluster_id']}</a></td>
-                  <td>{entry['bgc_id'] or 'N/A'}</td>
                   <td>{entry['substructure_name'] or 'N/A'}</td>
                   <td>{entry['substructure_class'] or 'N/A'}</td>
                   <td>{entry['best_motif_hit'] or 'N/A'}</td>
                   <td>{entry['overlap_score'] or 'N/A'}</td>
                   <td>{entry['penalized_score'] or 'N/A'}</td>
-                  <td>{entry['mibig_accession'] or 'N/A'}</td>
+                  <td>{entry['bgc_id'] or 'N/A'}</td>
                   <td><div class="motif-ids">{motif_ids_str}</div></td>
                 </tr>"""))
         
