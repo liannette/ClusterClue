@@ -106,7 +106,6 @@ def detect_gwms_in_clusters(
 
     return motif_hits
     
-
 def visualise_gwm_hits(
     motif_gwms_filepath: str | Path,
     motif_hits_filepath: str | Path,
@@ -114,7 +113,17 @@ def visualise_gwm_hits(
     domain_hits_filepath: str | Path,
     compound_structures_filepath: str | Path | None,
     output_dirpath: str | Path,
-    ):
+):
+    """Generate comprehensive HTML reports for BGCs and motifs with a master index.
+    
+    Args:
+        motif_gwms_filepath: Path to motif GWMs file
+        motif_hits_filepath: Path to motif hits file
+        genbank_dirpath: Path to directory containing GenBank files
+        domain_hits_filepath: Path to domain hits file
+        compound_structures_filepath: Path to compound structures file (optional)
+        output_dirpath: Path to output directory for HTML reports
+    """
     import subsketch as subsk
     
     session = subsk.SubSketchSession(
@@ -126,41 +135,14 @@ def visualise_gwm_hits(
         domain_colors_file=Path(files("clusterclue").joinpath("data").joinpath("domain_colors.txt"))
     )
     session.load()
-
-    # html per BGC
-    bgc_dirpath = Path(output_dirpath) / "bgc_reports"
-    bgc_dirpath.mkdir(parents=True, exist_ok=True)
     
-    logger.info(f"Generating HTML reports for {len(session.data.bgcs)} BGCs")
-    combined_html_content = ""
-    for bgc_id in session.data.bgcs.keys():
-        html_content = session.html_report_for_bgc(
-            bgc_id=bgc_id,
-            gene_arrow_scaling=60,
-            include_compound_plots=True,
-        )
-        combined_html_content += html_content
-
-        output_filepath = bgc_dirpath / f"{bgc_id}.html"
-        with open(output_filepath, "w") as f:
-            f.write(html_content)
-
-    combined_html_filepath = Path(output_dirpath) / "all_detected_motifs.html"
-    with open(combined_html_filepath, "w") as f:
-        f.write(combined_html_content)
-
-    # html per motif
-    motif_dirpath = Path(output_dirpath) / "motif_reports"
-    motif_dirpath.mkdir(parents=True, exist_ok=True)
-
-    logger.info(f"Generating HTML reports for {len(session.data.motifs)} motifs")
-    for motif_id in session.data.motifs.keys():
-        html_content = session.html_report_for_motif(
-            motif_id=motif_id,
-            gene_arrow_scaling=60,
-            include_compound_plots=True,
-        )
-        output_filepath = motif_dirpath / f"{motif_id}.html"
-        with open(output_filepath, "w") as f:
-            f.write(html_content)
-            
+    # Generate all reports with master index in one call
+    logger.info(f"Generating comprehensive report with {len(session.data.bgcs)} BGCs and {len(session.data.motifs)} motifs")
+    session.generate_all_reports_with_master_index(
+        output_dir=output_dirpath,
+        gene_arrow_scaling=60,
+        include_compound_plots=True,
+        include_motif_plots=True
+    )
+    
+    logger.info(f"Reports generated successfully. Open {Path(output_dirpath) / 'index.html'} to view.")
