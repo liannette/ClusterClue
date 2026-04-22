@@ -313,5 +313,5 @@ def process_domtables(
         summary_parts.append(f"{n_excluded} excluded (< {min_genes} genes)")
     if n_failed > 0:
         summary_parts.append(f"{n_failed} failed")
-    summary = ', '.join(summary_parts) if summary_parts else "no files processed"
-    logger.info(f"Domtable to tokens: {len(domtable_paths)} total - {summary}")
+    summary = ", ".join(summary_parts) if summary_parts else "no files processed"
+    logger.info(f"Domtable to tokenized BGCs: {len(domtable_paths)} total - {summary}")

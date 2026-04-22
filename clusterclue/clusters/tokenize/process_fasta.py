@@ -101,7 +101,7 @@ def process_fastas(fasta_dir_path, domtables_dir_path, hmm_file_path, cores, ver
     if status_counts["converted"] > 0:
         summary_parts.append(f"{status_counts['converted']} converted")
     if status_counts["existed"] > 0:
-        summary_parts.append(f"{status_counts['existed']} skipped (existed)")
+        summary_parts.append(f"{status_counts['existed']} skipped (already existed)")
     if status_counts["failed"] > 0:
         summary_parts.append(f"{status_counts['failed']} failed")
     summary = ', '.join(summary_parts) if summary_parts else "no files processed"

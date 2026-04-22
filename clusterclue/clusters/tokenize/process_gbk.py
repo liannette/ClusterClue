@@ -198,7 +198,7 @@ def process_gbks(
     if status_counts["converted"] > 0:
         summary_parts.append(f"{status_counts["converted"]} converted")
     if status_counts["existed"] > 0:
-        summary_parts.append(f"{status_counts["existed"]} skipped (existed)")
+        summary_parts.append(f"{status_counts["existed"]} skipped (already existed)")
     if status_counts["excluded"] > 0:
         summary_parts.append(f"{status_counts["excluded"]} excluded")
     if status_counts["filtered"] > 0:
