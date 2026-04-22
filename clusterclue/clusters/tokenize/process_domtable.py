@@ -52,95 +52,177 @@ def domains_are_overlapping(tup1, tup2, max_overlap):
     return overlap > min(length1, length2) * max_overlap
 
 
-def process_domtable(domtable_path, max_domain_overlap):
-    """Parses a domtab file and extracts domain information.
+def extract_query_metadata(query_id):
+    """
+    Extracts BGC name and CDS metadata from a query ID.
+    
+    Args:
+        query_id (str): Query ID in format "bgcname_gidX_Y_Z_N/M"
+        
+    Returns:
+        tuple: (bgc_name, summary_info, cds_number, total_genes)
+    """
+    bgc_name, gid_part = query_id.split("_gid")
+    id_parts = gid_part.split("_")
+    
+    # Extract CDS number and total genes from last part (format: "N/M")
+    cds_num, total_genes = map(int, id_parts[-1].split("/"))
+    
+    # Extract summary info from remaining parts
+    summary_info = [part.split(":")[-1] for part in id_parts[:-1]]
+    
+    return bgc_name, summary_info, cds_num, total_genes
 
+
+def collect_domain_hits(query):
+    """
+    Collects domain hits from a query and returns them sorted by position.
+    
+    Args:
+        query: SearchIO query object containing domain hits
+        
+    Returns:
+        list: List of tuples (domain_name, query_range, bitscore) sorted by start position
+    """
+    domain_hits = [
+        (hit[0].hit_id, hit[0].query_range, hit[0].bitscore)
+        for hit in query
+    ]
+    # Sort by start position for efficient overlap detection
+    domain_hits.sort(key=lambda x: x[1][0])
+    return domain_hits
+
+
+def remove_overlapping_domains(domain_hits, max_overlap):
+    """
+    Removes overlapping domains, keeping the one with higher bitscore.
+    Uses an optimized algorithm that takes advantage of sorted domain positions.
+    
+    Args:
+        domain_hits (list): List of (domain, range, bitscore) tuples, sorted by start position
+        max_overlap (float): Maximum allowed overlap fraction
+        
+    Returns:
+        list: Filtered list with overlapping domains removed
+    """
+    if len(domain_hits) <= 1:
+        return domain_hits
+    
+    domains_to_delete = set()
+    
+    for i in range(len(domain_hits) - 1):
+        # Skip if this domain is already marked for deletion
+        if i in domains_to_delete:
+            continue
+            
+        current_range = domain_hits[i][1]
+        current_score = domain_hits[i][2]
+        
+        # Check potential overlaps with subsequent domains
+        for j in range(i + 1, len(domain_hits)):
+            if j in domains_to_delete:
+                continue
+            
+            next_range = domain_hits[j][1]
+            next_score = domain_hits[j][2]
+            
+            # Early termination: if next domain starts after current ends, no overlap possible
+            if next_range[0] >= current_range[1]:
+                break
+            
+            # Check if domains overlap beyond threshold
+            if domains_are_overlapping(current_range, next_range, max_overlap):
+                # Keep the domain with higher bitscore
+                if current_score >= next_score:
+                    domains_to_delete.add(j)
+                else:
+                    domains_to_delete.add(i)
+                    break  # Current domain is deleted, move to next
+    
+    # Return filtered list
+    return [domain_hits[i] for i in range(len(domain_hits)) if i not in domains_to_delete]
+
+
+def create_tokenized_genes(queries, max_domain_overlap):
+    """
+    Processes all queries and creates tokenized gene representation with gaps.
+    
+    Args:
+        queries: Iterator of SearchIO query objects
+        max_domain_overlap (float): Max overlap allowed between domains
+        
+    Returns:
+        tuple: (tokenized_genes, all_domain_hits, bgc_name)
+            - tokenized_genes: List of gene tuples, with ("-",) for genes without domains
+            - all_domain_hits: List of all domain hit information
+            - bgc_name: Name of the BGC
+    """
+    tokenized_genes = []
+    all_domain_hits = []
+    previous_cds_num = 0
+    total_genes = 0
+    bgc_name = None
+    empty_gene = ("-",)
+    
+    for query in queries:
+        # Extract metadata from query ID
+        bgc_name, summary_info, cds_num, total_genes = extract_query_metadata(query.id)
+        
+        # Collect and process domain hits for this gene
+        domain_hits = collect_domain_hits(query)
+        filtered_domains = remove_overlapping_domains(domain_hits, max_domain_overlap)
+        
+        # Store detailed domain hit information
+        for domain, range_q, bitscore in filtered_domains:
+            all_domain_hits.append([
+                bgc_name,
+                summary_info,
+                cds_num,
+                total_genes,
+                domain,
+                range_q,
+                bitscore,
+            ])
+        
+        # Add gap genes (genes without domain hits between previous and current CDS)
+        gap_size = cds_num - previous_cds_num - 1
+        if gap_size > 0:
+            tokenized_genes.extend([empty_gene] * gap_size)
+        
+        # Add current gene's domains
+        gene_domains = tuple(domain for domain, _, _ in filtered_domains)
+        tokenized_genes.append(gene_domains)
+        previous_cds_num = cds_num
+    
+    # Add gap genes at the end if needed
+    end_gap_size = total_genes - previous_cds_num
+    if end_gap_size > 0:
+        tokenized_genes.extend([empty_gene] * end_gap_size)
+    
+    return tokenized_genes, all_domain_hits, bgc_name
+
+
+def process_domtable(domtable_path, max_domain_overlap):
+    """
+    Parses a domtab file and extracts domain information.
+    
     Args:
         domtable_path (str): Path to the domtab file.
         max_domain_overlap (float): Max overlap allowed between two domains before they are
             considered overlapping.
 
     Returns:
-        list: A list of lists where each sublist represents a gene and contains tuples
-            of domains.
+        tuple: (cluster_id, tokenized_genes, all_domain_hits)
+            - cluster_id: Identifier for the cluster (from filename)
+            - tokenized_genes: List of gene tuples with domain information
+            - all_domain_hits: List of detailed domain hit information
     """
     queries = SearchIO.parse(domtable_path, "hmmscan3-domtab")
-    cds_before = 0
-    cds_num = 0
-    total_genes = 0
-
-    # list of lists for the domains in the cluster where each sublist is a gene
-    tokenized_genes = []
-    all_domain_hits = []
-
-    while True:
-        query = next(queries, None)
-        if query is None:
-            # end of queries/queries is empty
-            break
-        # for every cds that has a hit
-        dom_matches = []
-        q_id = query.id
-        # make sure that bgcs with _ in name do not get split
-        bgc, q_id = q_id.split("_gid")
-        q_id = q_id.split("_")
-        cds_num, total_genes = map(int, q_id[-1].split("/"))
-        sum_info = [q.split(":")[-1] for q in q_id[:-1]]
-        # for every hit in each cds
-        for hit in query:
-            match = hit[0]
-            domain = match.hit_id
-            range_q = match.query_range
-            bitsc = match.bitscore
-            dom_matches.append((domain, range_q, bitsc))
-        dels = []
-        if len(query) > 1:
-            for i in range(len(query) - 1):
-                for j in range(i + 1, len(query)):
-                    # if there is a significant overlap delete the one with
-                    # the lower bitscore
-                    if domains_are_overlapping(
-                        dom_matches[i][1], dom_matches[j][1], max_domain_overlap
-                    ):
-                        if dom_matches[i][2] >= dom_matches[j][2]:
-                            dels.append(j)
-                        else:
-                            dels.append(i)
-        cds_matches = [dom_matches[i] for i in range(len(query)) if i not in dels]
-        cds_matches.sort(key=lambda x: x[1][0])
-
-        # Add to all_domain_hits
-        for domain, range_q, bitscore in cds_matches:
-            all_domain_hits.append(
-                [
-                    bgc,
-                    sum_info,
-                    cds_num,
-                    total_genes,
-                    domain,
-                    range_q,
-                    bitscore,
-                ]
-            )
-
-        # Collect domain matches for the current CDS
-        cds_doms = tuple(domain for domain, _, _ in cds_matches)
-
-        # If a CDS has no domains, add '-' to indicate gap
-        gene_gap = cds_num - cds_before - 1
-        if gene_gap > 0:
-            gaps = [("-",) for _ in range(gene_gap)]
-            tokenized_genes += gaps
-
-        tokenized_genes.append(cds_doms)
-        cds_before = cds_num
-
-    # Add gaps to the end of the cluster if there are any
-    end_gap = total_genes - cds_num
-    if end_gap > 0:
-        gaps = [("-",) for _ in range(end_gap)]
-        tokenized_genes += gaps
-
+    
+    tokenized_genes, all_domain_hits, bgc_name = create_tokenized_genes(
+        queries, max_domain_overlap
+    )
+    
     cluster_id = Path(domtable_path).stem
     return cluster_id, tokenized_genes, all_domain_hits
 
@@ -188,12 +270,15 @@ def filter_non_empty_genes(clusters, min_genes, verbose):
         if n_genes_with_domains >= min_genes:
             filtered_clusters.append(cluster)
         else:
-            logger.debug(f"Excluding {cluster_id}, only {n_genes_with_domains} genes with domain hits (min {min_genes})")
+            logger.debug(
+                f"Excluding {cluster_id}, only {n_genes_with_domains} genes with domain hits (min {min_genes})"
+            )
 
     return sorted(filtered_clusters, key=lambda x: x[0])
 
 
 def write_summary_header(summary_file):
+    """Writes the header row for the domain hits summary file."""
     summary_header = [
         "bgc",
         "g_id",
@@ -205,22 +290,14 @@ def write_summary_header(summary_file):
         "q_range",
         "bitscore",
     ]
-    summary_header = "\t".join(summary_header)
-    summary_file.write(f"{summary_header}\n")
+    summary_file.write("\t".join(summary_header) + "\n")
 
 
-def format_summary_line(
-    cluster_id, sum_info, cds_num, total_genes, domain, range_q, bitscore
-):
-    return "{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format(
-        cluster_id,
-        "\t".join(sum_info),
-        cds_num,
-        total_genes,
-        domain,
-        ";".join(map(str, range_q)),
-        bitscore,
-    )
+def format_summary_line(cluster_id, sum_info, cds_num, total_genes, domain, range_q, bitscore):
+    """Formats a single domain hit as a tab-separated line."""
+    sum_info_str = "\t".join(sum_info)
+    range_str = ";".join(map(str, range_q))
+    return f"{cluster_id}\t{sum_info_str}\t{cds_num}\t{total_genes}\t{domain}\t{range_str}\t{bitscore}\n"
 
 
 def process_domtables(
@@ -265,10 +342,7 @@ def process_domtables(
 
     # Process each domtable in parallel
     pool = Pool(
-        cores,
-        maxtasksperchild=100,
-        initializer=worker_init,
-        initargs=(log_queue,)
+        cores, maxtasksperchild=100, initializer=worker_init, initargs=(log_queue,)
     )
     with pool:
         process_func = partial(
@@ -276,7 +350,8 @@ def process_domtables(
             max_domain_overlap=max_domain_overlap,
             verbose=verbose,
         )
-        results = pool.map(process_func, domtable_paths)
+        results = list(pool.imap_unordered(process_func, domtable_paths, chunksize=10))
+        
     clusters = [res for res in results if res is not None]
     clusters.sort(key=lambda x: x[0])  # Sort clusters by cluster_id
 
@@ -294,17 +369,19 @@ def process_domtables(
         gene_counter.update(tokenized_genes)
     write_gene_counts(gene_counter, gene_counts_file_path)
 
-    # Write the summary file
-    domain_hits_file = open(domain_hits_file_path, "w")
-    write_summary_header(domain_hits_file)
-    for _, _, domain_hits in filtered_clusters:
-        for domain_hit in domain_hits:
-            domain_hits_file.write(format_summary_line(*domain_hit))
-    domain_hits_file.close()
+    # Write the domain hits summary file (batched for efficiency)
+    with open(domain_hits_file_path, "w") as domain_hits_file:
+        write_summary_header(domain_hits_file)
+        lines = []
+        for _, _, domain_hits in filtered_clusters:
+            for domain_hit in domain_hits:
+                lines.append(format_summary_line(*domain_hit))
+        domain_hits_file.writelines(lines)
 
+    # Log summary
     n_failed = len(domtable_paths) - len(clusters)
     n_converted = len(filtered_clusters)
-    n_excluded = len(domtable_paths) - len(filtered_clusters) - n_failed
+    n_excluded = len(clusters) - len(filtered_clusters)
 
     summary_parts = []
     if n_converted > 0:
