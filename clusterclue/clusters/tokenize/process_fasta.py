@@ -4,7 +4,7 @@ from functools import partial
 from pathlib import Path
 from pyhmmer.hmmer import hmmscan
 from pyhmmer.plan7 import HMMFile
-from pyhmmer.easel import SequenceFile
+from pyhmmer.easel import SequenceFile, Alphabet
 from clusterclue.utils import worker_init
 
 logger = logging.getLogger(__name__)
@@ -23,14 +23,21 @@ def run_hmmscan(fasta_file_path, hmm_file_path, out_file_path):
     """
     # run hmmscan
     with HMMFile(hmm_file_path) as hmm_file, \
-            SequenceFile(fasta_file_path, digital=True) as seq_file:
+            SequenceFile(fasta_file_path, digital=True, alphabet=Alphabet.amino()) as seq_file:
         hits = list(hmmscan(seq_file, hmm_file, cpus=1, bit_cutoffs="trusted"))
 
     # Write the hits to the output file
+    if not hits:
+        print(f"Warning: No hits found. Creating empty output file: {out_file_path}")
+        with open(out_file_path, "w") as out_file:
+            out_file.write("# No hits found\n")
+        return
+    
     with open(out_file_path, "wb") as out_file:
-        # Write header only once
+        # Write header with first hit
         hits[0].write(out_file, format="domains", header=True)
-        # Write the remaining hits without repeating the header
+        
+        # Write remaining hits without repeating the header
         for hit in hits[1:]:
             hit.write(out_file, format="domains", header=False)
 
@@ -68,7 +75,7 @@ def process_fastas(fasta_dir_path, domtables_dir_path, hmm_file_path, cores, ver
     """
     logger.info("Processing fastas with hmmscan to generate domtables...")
 
-    fasta_file_paths = list(Path(fasta_dir_path).glob("*.fasta"))
+    fasta_file_paths = sorted(Path(fasta_dir_path).glob("*.fasta"))
 
     # Process each fasta file in parallel
     pool = Pool(
