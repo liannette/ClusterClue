@@ -194,23 +194,17 @@ def process_gbks(
         status: results.count(status)
         for status in ["converted", "existed", "excluded", "failed", "filtered"]
     }
-    n_converted = status_counts["converted"]
-    n_existed = status_counts["existed"]
-    n_excluded = status_counts["excluded"]
-    n_failed = status_counts["failed"]
-    n_filtered = status_counts["filtered"]
+    summary_parts = []
+    if status_counts["converted"] > 0:
+        summary_parts.append(f"{status_counts["converted"]} converted")
+    if status_counts["existed"] > 0:
+        summary_parts.append(f"{status_counts["existed"]} skipped (existed)")
+    if status_counts["excluded"] > 0:
+        summary_parts.append(f"{status_counts["excluded"]} excluded")
+    if status_counts["filtered"] > 0:
+        summary_parts.append(f"{status_counts["filtered"]} filtered")
+    if status_counts["failed"] > 0:
+        summary_parts.append(f"{status_counts["failed"]} failed")
 
-    logger.info(f"Summary of GenBank to FASTA conversion:")
-    logger.info(f"  Total .gbk files processed: {len(gbk_file_paths)}")
-    if n_converted > 0:
-        logger.info(f"  Converted: {n_converted} .gbk files successfully converted to FASTA.")
-    if n_existed > 0:
-        logger.info(f"  Existed: {n_existed} FASTA files already present and skipped.")
-    if n_excluded > 0:
-        logger.info(
-            f"  Excluded: {n_excluded} .gbk files skipped due to file name containing: {', '.join(exclude_name)}"
-        )
-    if n_filtered > 0:
-        logger.info(f"  Filtered: {n_filtered} .gbk files excluded due to being at contig edges.")
-    if n_failed > 0:
-        logger.warning(f"  Failed: {n_failed} .gbk files could not be converted due to errors.")
+    summary = ', '.join(summary_parts) if summary_parts else "no files processed"
+    logger.info(f"GenBank to FASTA: {len(gbk_file_paths)} total - {summary}")

@@ -306,10 +306,12 @@ def process_domtables(
     n_converted = len(filtered_clusters)
     n_excluded = len(domtable_paths) - len(filtered_clusters) - n_failed
 
-    logger.info(f"Processed {len(domtable_paths)} domtables:")
+    summary_parts = []
     if n_converted > 0:
-        logger.info(f" - {n_converted} domtables were converted to tokenised clusters.")
+        summary_parts.append(f"{n_converted} converted")
     if n_excluded > 0:
-        logger.info(f" - {n_excluded} excluded for having < {min_genes} genes with domain hits")
+        summary_parts.append(f"{n_excluded} excluded (< {min_genes} genes)")
     if n_failed > 0:
-        logger.info(f" - {n_failed} domtables failed to be converted to tokenised clusters")
+        summary_parts.append(f"{n_failed} failed")
+    summary = ', '.join(summary_parts) if summary_parts else "no files processed"
+    logger.info(f"Domtable to tokens: {len(domtable_paths)} total - {summary}")

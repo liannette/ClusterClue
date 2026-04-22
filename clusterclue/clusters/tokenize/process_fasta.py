@@ -97,14 +97,12 @@ def process_fastas(fasta_dir_path, domtables_dir_path, hmm_file_path, cores, ver
     status_counts = {
         status: results.count(status) for status in ["converted", "existed", "failed"]
     }
-    n_converted = status_counts["converted"]
-    n_existed = status_counts["existed"]
-    n_failed = status_counts["failed"]
-
-    logger.info(f"Processed {len(fasta_file_paths)} fasta files:")
-    if n_failed > 0:
-        logger.info(f" - {n_failed} fasta files failed to be converted into domtables")
-    if n_existed > 0:
-        logger.info(f" - {n_existed} domtables already existed in the output folder")
-    if n_converted > 0:
-        logger.info(f" - {n_converted} fasta files were converted into domtables")
+    summary_parts = []
+    if status_counts["converted"] > 0:
+        summary_parts.append(f"{status_counts['converted']} converted")
+    if status_counts["existed"] > 0:
+        summary_parts.append(f"{status_counts['existed']} skipped (existed)")
+    if status_counts["failed"] > 0:
+        summary_parts.append(f"{status_counts['failed']} failed")
+    summary = ', '.join(summary_parts) if summary_parts else "no files processed"
+    logger.info(f"FASTA to domtable: {len(fasta_file_paths)} total - {summary}")
