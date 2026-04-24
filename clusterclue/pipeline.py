@@ -1,8 +1,5 @@
 import logging
-import json
 from pathlib import Path
-from clusterclue.clusters.tokenize.orchestrator import TokenizeOrchestrator
-from clusterclue.clusters.orchestrator import PreprocessOrchestrator
 
 logger = logging.getLogger(__name__)
 
@@ -12,19 +9,23 @@ def create_new_motifs(
     log_queue
 ):
     """
-    Runs the entire pipeline.
+    Runs the entire pipeline with configurable parameters.
     """
     # import here to avoid importing heavy dependencies (e.g. gensim) when 
-    # the user only wants to detect existing motifs
+    # detect existing motifs
+    from clusterclue.clusters.tokenize.orchestrator import TokenizeOrchestrator
+    from clusterclue.clusters.orchestrator import PreprocessOrchestrator
     from clusterclue.presto_stat.orchestrator import StatOrchestrator
     from clusterclue.presto_top.orchestrator import TopOrchestrator
     from clusterclue.gwms.create_motifs import create_and_evaluate_motif_gwms
-    from clusterclue.gwms.select_best import select_best_motif_set
     from clusterclue.evaluate.presto_predictions import evaluate_presto_stat, evaluate_presto_top
+    import json
+    if cmd.visualize_evaluation:
+        from clusterclue.evaluate.visualize import visualize_evaluation_results
 
     out_dirpath = Path(cmd.out_dir_path)
     out_dirpath.mkdir(parents=True, exist_ok=True)
-
+ 
     # Step 1: Preprocessing clusters
     logger.info("=== Preprocessing clusters ===")
     preprocess_dirpath = out_dirpath / "preprocess"
@@ -51,10 +52,10 @@ def create_new_motifs(
     logger.info(f"Preprocessing BGCs containing annotated subclusters from {cmd.reference_subclusters_filepath}")
     prep_ref_dirpath = evaluation_dirpath / "preprocess_reference_clusters"
     prep_ref_dirpath.mkdir(parents=True, exist_ok=True)
-
+ 
     ref_clusters_filepath = prep_ref_dirpath / "clusters.tsv"
     ref_domain_hits_filepath = prep_ref_dirpath / "all_domain_hits.txt"
-
+ 
     if ref_clusters_filepath.is_file() and ref_domain_hits_filepath.is_file():
         logger.info("Skipping tokenisation step for reference BGCs, because the files already exist.")
     else:
@@ -70,8 +71,7 @@ def create_new_motifs(
             verbose=cmd.verbose,
             log_queue=log_queue,
         )
-
-
+ 
     # Step 2: Statistical subcluster detection (PRESTO-STAT)
     stat_dirpath = out_dirpath / "presto_stat_subclusters"
     if cmd.run_stat:
@@ -86,7 +86,7 @@ def create_new_motifs(
             cmd.cores,
             cmd.verbose,
         )
-
+ 
     # Step 3: Topic modelling for subcluster motif detection (PRESTO-TOP)
     top_dirpath = out_dirpath / "presto_top_subclusters"
     if cmd.run_top:
@@ -108,16 +108,16 @@ def create_new_motifs(
             cmd.top_min_feat_score,
             cmd.cores,
         )
-
+ 
     # PRESTO evaluation
     logger.info("=== Evaluating PRESTO subcluster detections against reference subclusters ===")
-
+ 
     results_filepath = evaluation_dirpath / "results_presto.json"
     if results_filepath.is_file():
         logger.info(f"Skipping PRESTO evaluation, because the file already exists {results_filepath}")
     else:
         results = {}
-
+ 
         stat_results = evaluate_presto_stat(
             reference_subclusters_filepath=cmd.reference_subclusters_filepath,
             reference_clusters_filepath=ref_clusters_filepath,
@@ -125,7 +125,7 @@ def create_new_motifs(
             output_dirpath=evaluation_dirpath / "presto_stat_subclusters",
         )
         results.update(stat_results)
-
+ 
         top_results = evaluate_presto_top(
             reference_subclusters_filepath=cmd.reference_subclusters_filepath,
             reference_clusters_filepath=ref_clusters_filepath,
@@ -134,48 +134,118 @@ def create_new_motifs(
             output_dirpath=evaluation_dirpath / "presto_top_subclusters",
         )
         results.update(top_results)
-
+ 
         # Save combined results as JSON
         results_filepath = evaluation_dirpath / "results_presto.json"
         with open(results_filepath, 'w') as f:
             json.dump(results, f, indent=2)
         logger.info(f"PRESTO results saved to: {results_filepath}")
-
-
-    # Step 4: Create GWMs
+ 
+    # Step 4: Create GWMs with configurable parameters
     logger.info("=== Create Subcluster Motif gene weight matrices (GWMs) ===")
     motifs_dirpath = out_dirpath / "clusterclue_motifs"
+    
     if motifs_dirpath.is_dir() and any(motifs_dirpath.iterdir()):
         logger.info(f"Skipping motif generation step, because the directory already exists and is not empty: {motifs_dirpath}")
     else:
         motifs_dirpath.mkdir(parents=True, exist_ok=True)
         stat_matches_filepath = stat_dirpath / "detected_stat_modules.txt"
         top_matches_filepath = top_dirpath / "matches_per_topic_filtered.txt"
+ 
+        # Build clustering configs from CLI arguments
+        clustering_configs = []
+        
+        if cmd.clustering_method == 'hdbscan':
+            # HDBSCAN always uses SVD (required for sparse binary matrices)
+            if not cmd.use_svd:
+                logger.warning("HDBSCAN requires SVD. Ignoring --use_svd False.")
+                
+            for mcs in cmd.min_cluster_sizes:
+                for tv in cmd.target_variances:
+                    config_name = f"hdb_svd{int(tv*100)}_mcs{mcs}_eps{int(cmd.cluster_selection_epsilon*100)}"
+                    clustering_configs.append({
+                        'method': 'hdbscan',
+                        'min_cluster_size': mcs,
+                        'use_svd': True,
+                        'target_variance': tv,
+                        'cluster_selection_method': 'eom',
+                        'cluster_selection_epsilon': cmd.cluster_selection_epsilon,
+                        'name': config_name
+                    })
+        
+        elif cmd.clustering_method == 'kmeans':
+            for k in cmd.k_values:
+                if cmd.use_svd:
+                    # Test each variance level with SVD
+                    for tv in cmd.target_variances:
+                        config_name = f"kmeans_svd{int(tv*100)}_k{k}"
+                        clustering_configs.append({
+                            'method': 'kmeans',
+                            'k': k,
+                            'use_svd': True,
+                            'target_variance': tv,
+                            'name': config_name
+                        })
+                else:
+                    # No SVD - only one config per k
+                    config_name = f"kmeans_raw_k{k}"
+                    clustering_configs.append({
+                        'method': 'kmeans',
+                        'k': k,
+                        'use_svd': False,
+                        'target_variance': None,  # Not used
+                        'name': config_name
+                    })
 
+        
+        logger.info(f"Testing {len(clustering_configs)} clustering configurations:")
+        for config in clustering_configs:
+            logger.info(f"  - {config['name']}")
+        
+        logger.info(f"Merge parameter combinations: {len(cmd.merge_similarity_thresholds)} × {len(cmd.merge_gene_thresholds)} × {len(cmd.merge_metrics)}")
+        logger.info(f"GWM parameter combinations: {len(cmd.gwm_min_matches)} × {len(cmd.gwm_min_core_genes)} × {len(cmd.gwm_core_thresholds)} × {len(cmd.gwm_min_gene_probs)}")
+        
+        total_configs = (
+            len(clustering_configs) *
+            len(cmd.merge_similarity_thresholds) * len(cmd.merge_gene_thresholds) * len(cmd.merge_metrics) *
+            len(cmd.gwm_min_matches) * len(cmd.gwm_min_core_genes) * len(cmd.gwm_core_thresholds) * len(cmd.gwm_min_gene_probs)
+        )
+        logger.info(f"Total configurations to test: {total_configs}")
+ 
         best_result = create_and_evaluate_motif_gwms(
             stat_matches_filepath=stat_matches_filepath,
             top_matches_filepath=top_matches_filepath,
             clusters_filepath=clusters_filepath,
             annotated_subclusters_filepath=cmd.reference_subclusters_filepath,
             reference_clusters_filepath=ref_clusters_filepath,
-            overlap_penalty_alpha=0.5,
-            overlap_penalty_beta=2.0,
+            overlap_penalty_alpha=cmd.overlap_penalty_alpha,
+            overlap_penalty_beta=cmd.overlap_penalty_beta,
             out_dirpath=motifs_dirpath,
             n_jobs=cmd.cores,
+            # Clustering parameters
+            clustering_configs=clustering_configs,
+            # Merge parameters
+            merge_similarity_thresholds=cmd.merge_similarity_thresholds,
+            merge_gene_thresholds=cmd.merge_gene_thresholds,
+            merge_metrics=cmd.merge_metrics,
+            # GWM parameters
+            gwm_min_matches=cmd.gwm_min_matches,
+            gwm_min_core_genes=cmd.gwm_min_core_genes,
+            gwm_core_thresholds=cmd.gwm_core_thresholds,
+            gwm_min_gene_probs=cmd.gwm_min_gene_probs,
         )
-
+ 
     if cmd.visualize_evaluation:
-        from clusterclue.evaluate.visualize import visualize_evaluation_results
-
+ 
         # Get the gwm with the best penalized score
         evaluation_results_filepath = motifs_dirpath / "results_final.json"
         with open(evaluation_results_filepath, 'r') as f:
             all_results = json.load(f)
         best_name, best_result = max(all_results.items(), key=lambda x: x[1].get('mean_penalized_score', 0))
-
+ 
         domain_hits_filepath = Path(ref_clusters_filepath).parent / "all_domain_hits.txt"
         out_html_dirpath = motifs_dirpath / "evaluation_hits_html" / best_name
-
+ 
         visualize_evaluation_results(
             annotated_subclusters_filepath=cmd.reference_subclusters_filepath,
             evaluation_best_hits_filepath=best_result['eval_best_hits_filepath'],
@@ -183,16 +253,20 @@ def create_new_motifs(
             ref_gbks_dirpath=Path(cmd.reference_gbks_dirpath),
             domain_hits_filepath=domain_hits_filepath,
             motif_hits_filepath=best_result['eval_hits_filepath'],
-            mibig_compounds_filepath=Path(cmd.compound_smiles_filepath),
+            mibig_compounds_filepath=Path(cmd.compound_smiles_filepath) if cmd.compound_smiles_filepath else None,
             out_html_dirpath=out_html_dirpath
         )
+
 
 
 def detect_existing_motifs(
     cmd,
     log_queue,
     ):
+    from clusterclue.clusters.orchestrator import PreprocessOrchestrator
     from clusterclue.gwms.detect_motifs import detect_gwms_in_clusters
+    if cmd.visualize_hits:
+        from clusterclue.gwms.detect_motifs import visualise_gwm_hits 
 
     out_dirpath = Path(cmd.out_dir_path)
     out_dirpath.mkdir(parents=True, exist_ok=True)
@@ -228,7 +302,6 @@ def detect_existing_motifs(
 
     # Step 3: Visualize detected motif hits
     if cmd.visualize_hits:
-        from clusterclue.gwms.detect_motifs import visualise_gwm_hits 
         logger.info("=== Visualizing detected motif hits ===")
         visualization_output_dirpath = out_dirpath / "hit_visualizations"
         visualization_output_dirpath.mkdir(parents=True, exist_ok=True)

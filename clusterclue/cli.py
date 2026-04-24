@@ -257,13 +257,137 @@ def get_commands():
     )
     # GWMs
     build.add_argument(
-        "--target_variance",
-        dest="target_variance_explained",
-        default=0.5,
+        "--clustering_method",
+        dest="clustering_method",
+        default="hdbscan",
+        choices=["kmeans", "hdbscan"],
+        help="Clustering method to use (default: hdbscan)",
+    )
+    build.add_argument(
+        "--min_cluster_sizes",
+        dest="min_cluster_sizes",
+        nargs="+",
+        type=int,
+        default=[20],
+        metavar="<int>",
+        help="Min cluster sizes to test for HDBSCAN (default: [20])",
+    )
+    build.add_argument(
+        "--k_values",
+        dest="k_values",
+        nargs="+",
+        type=int,
+        default=[2000],
+        metavar="<int>",
+        help="K values to test for K-means (default: [100])",
+    )
+    build.add_argument(
+        "--use_svd",
+        dest="use_svd",
+        action="store_true",
+        default=True,
+        help="Use SVD for dimensionality reduction before clustering (default: True)",
+    )
+    build.add_argument(
+        "--target_variances",
+        dest="target_variances",
+        nargs="+",
         type=float,
+        default=[0.5],
         metavar="<float>",
-        help="The target variance explained to determine the number of dimensions "
-        "to reduce to with SVD before clustering subcluster modules. (default: 0.5).",
+        help="Target variance levels for SVD to test (default: [0.5])",
+    )
+    build.add_argument(
+        "--cluster_selection_epsilon",
+        dest="cluster_selection_epsilon",
+        type=float,
+        default=0.1,
+        metavar="<float>",
+        help="Cluster selection epsilon for HDBSCAN (default: 0.1)",
+    )
+    
+    # GWMs - Merge parameters
+    build.add_argument(
+        "--merge_similarity_thresholds",
+        dest="merge_similarity_thresholds",
+        nargs="+",
+        type=float,
+        default=[0.7],
+        metavar="<float>",
+        help="Similarity thresholds for merging motifs (default: [0.7])",
+    )
+    build.add_argument(
+        "--merge_gene_thresholds",
+        dest="merge_gene_thresholds",
+        nargs="+",
+        type=float,
+        default=[0.2],
+        metavar="<float>",
+        help="Gene probability thresholds for merging (default: [0.2])",
+    )
+    build.add_argument(
+        "--merge_metrics",
+        dest="merge_metrics",
+        nargs="+",
+        default=["jaccard"],
+        choices=["jaccard", "cosine"],
+        help="Similarity metrics for merging (default: ['jaccard'])",
+    )
+    
+    # GWMs - GWM building parameters
+    build.add_argument(
+        "--gwm_min_matches",
+        dest="gwm_min_matches",
+        nargs="+",
+        type=int,
+        default=[20],
+        metavar="<int>",
+        help="Min matches required for GWM building (default: [20])",
+    )
+    build.add_argument(
+        "--gwm_min_core_genes",
+        dest="gwm_min_core_genes",
+        nargs="+",
+        type=int,
+        default=[2],
+        metavar="<int>",
+        help="Min core genes required for GWM building (default: [2])",
+    )
+    build.add_argument(
+        "--gwm_core_thresholds",
+        dest="gwm_core_thresholds",
+        nargs="+",
+        type=float,
+        default=[0.9],
+        metavar="<float>",
+        help="Core gene thresholds to test (default: [0.9])",
+    )
+    build.add_argument(
+        "--gwm_min_gene_probs",
+        dest="gwm_min_gene_probs",
+        nargs="+",
+        type=float,
+        default=[0.2],
+        metavar="<float>",
+        help="Min gene probabilities for GWM building (default: [0.2])",
+    )
+    
+    # GWMs - Evaluation parameters
+    build.add_argument(
+        "--overlap_penalty_alpha",
+        dest="overlap_penalty_alpha",
+        type=float,
+        default=0.5,
+        metavar="<float>",
+        help="Alpha parameter for overlap penalty in evaluation (default: 0.5)",
+    )
+    build.add_argument(
+        "--overlap_penalty_beta",
+        dest="overlap_penalty_beta",
+        type=float,
+        default=2.0,
+        metavar="<float>",
+        help="Beta parameter for overlap penalty in evaluation (default: 2.0)",
     )
     build.add_argument(
         "--ref_sc",
