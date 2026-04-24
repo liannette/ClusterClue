@@ -275,8 +275,8 @@ def generate_subcluster_motifs(
             logger.info(f"Saved initial motifs to {motifs_filepath}")
 
             # Merge similar motifs
-            merge_similarity_threshold = 0.7
-            merge_gene_threshold = 0.2
+            merge_similarity_threshold = 0.5
+            merge_gene_threshold = 0.25
             similarity_metric = "jaccard"
             logger.info(
                 f"Merging motifs with {similarity_metric} similarity >= "
@@ -519,18 +519,24 @@ def create_and_evaluate_motif_gwms(
 ):
 
     configs = [
-        {'method': 'hdbscan', 'min_cluster_size': 10, 'use_svd': True, 'target_variance': 0.90,
-        'cluster_selection_method': 'eom', 'cluster_selection_epsilon': 0.1, 'name': 'hdb_svd90_mcs10_eps01'},
-        {'method': 'hdbscan', 'min_cluster_size': 10, 'use_svd': True, 'target_variance': 0.95,
-        'cluster_selection_method': 'eom', 'cluster_selection_epsilon': 0.1, 'name': 'hdb_svd95_mcs10_eps01'},
-        {'method': 'hdbscan', 'min_cluster_size': 10, 'use_svd': False,
-        'cluster_selection_method': 'eom', 'cluster_selection_epsilon': 0.1, 'name': 'hdb_mcs10_eps01'}
+        # {'method': 'hdbscan', 'min_cluster_size': 10, 'use_svd': True, 'target_variance': 0.90,
+        # 'cluster_selection_method': 'eom', 'cluster_selection_epsilon': 0.1, 'name': 'hdb_svd90_mcs10_eps01'},
+        # {'method': 'hdbscan', 'min_cluster_size': 10, 'use_svd': True, 'target_variance': 0.95,
+        # 'cluster_selection_method': 'eom', 'cluster_selection_epsilon': 0.1, 'name': 'hdb_svd95_mcs10_eps01'},
+        # {'method': 'hdbscan', 'min_cluster_size': 10, 'use_svd': False,
+        # 'cluster_selection_method': 'eom', 'cluster_selection_epsilon': 0.1, 'name': 'hdb_mcs10_eps01'}
+        {'method': 'hdbscan', 'min_cluster_size': 20, 'use_svd': True, 'target_variance': 0.50,
+        'cluster_selection_method': 'eom', 'cluster_selection_epsilon': 0.1, 'name': 'hdb_svd60_mcs20_eps01'},
+        {'method': 'hdbscan', 'min_cluster_size': 20, 'use_svd': True, 'target_variance': 0.60,
+        'cluster_selection_method': 'eom', 'cluster_selection_epsilon': 0.1, 'name': 'hdb_svd60_mcs20_eps01'},
+        {'method': 'hdbscan', 'min_cluster_size': 20, 'use_svd': True, 'target_variance': 0.70,
+        'cluster_selection_method': 'eom', 'cluster_selection_epsilon': 0.1, 'name': 'hdb_svd70_mcs20_eps01'},
     ]
 
     min_matches = (20,)
     min_core_genes = (2,)
     core_threshold = (0.8, 0.9,)
-    min_gene_prob = (0.2,)
+    min_gene_prob = (0.2, 0.25, )
     gwm_hyperparams = list(product(
         min_matches,
         min_core_genes,
